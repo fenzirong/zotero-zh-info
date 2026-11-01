@@ -16,3 +16,8 @@ pref("extensions.zhinfo.llm.apiKey", "");
 pref("extensions.zhinfo.llm.model", "deepseek-chat");
 pref("extensions.zhinfo.llm.titlePrompt", "");
 pref("extensions.zhinfo.llm.abstractPrompt", "");
+pref("extensions.zhinfo.llm.textPrompt", "");
+
+pref("extensions.zhinfo.pdfAuto", false);
+pref("extensions.zhinfo.pdfScope", "page");
+pref("extensions.zhinfo.pdfMinChars", 20);

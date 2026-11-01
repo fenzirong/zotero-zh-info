@@ -48,7 +48,7 @@ var ZHInfoTranslate = {
 				out = await this.deepl(src);
 				break;
 			case 'llm':
-				out = await this.llm(src, kind === 'abstract' ? 'abstract' : 'title');
+				out = await this.llm(src, kind === 'abstract' ? 'abstract' : (kind === 'text' ? 'text' : 'title'));
 				break;
 			default:
 				throw new Error('未知的翻译服务：' + pid + '（请在设置中重新选择）');
@@ -237,10 +237,14 @@ var ZHInfoTranslate = {
 			? '繁体中文（台湾用语）'
 			: '简体中文';
 		const extra = (Zotero.Prefs.get(
-			'extensions.zhinfo.llm.' + (kind === 'abstract' ? 'abstractPrompt' : 'titlePrompt'), true) || ''
+			'extensions.zhinfo.llm.' + (kind === 'abstract' ? 'abstractPrompt' : (kind === 'text' ? 'textPrompt' : 'titlePrompt')), true) || ''
 		).trim();
 
-		const system = kind === 'abstract'
+		const system = kind === 'text'
+			? '你是一名学术文献翻译专家。请把用户提供的文本段落翻译成' + langName
+				+ '，要求：忠实通顺、术语准确、保留引用标记与数字、不增删内容，'
+				+ '只输出译文本身，不要输出原文、解释或前后缀。'
+			: kind === 'abstract'
 			? '你是一名学术文献翻译专家。请把用户提供的文献摘要翻译成' + langName
 				+ '，要求：忠实通顺、术语准确、保留必要缩写与专有名词，不增删内容，'
 				+ '不要输出原文、解释、标题或任何前后缀，只输出译文本身。'

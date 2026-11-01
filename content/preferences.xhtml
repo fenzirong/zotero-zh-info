@@ -77,6 +77,22 @@
 		<description class="zhinfo-prefs-description">使用 translate.googleapis.com 的免费接口，无需配置。若所在网络无法访问 Google，请改用「大模型 API」。</description>
 	</groupbox>
 
+	<groupbox id="zhinfo-group-pdf">
+		<label><html:h2>PDF 双语对照</html:h2></label>
+		<description class="zhinfo-prefs-description">阅读 PDF 时，点阅读器工具栏的「双语对照」按钮，即以重排文本方式逐段显示原文与中文译文；每段右上角的 × 可单独取消该段翻译，顶部可停止/清除/关闭。</description>
+		<checkbox id="zhinfo-pref-pdfauto" label="打开 PDF 时自动生成双语对照（总开关）" />
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="自动翻译范围" flex="1" />
+			<html:select id="zhinfo-pref-pdfscope" style="min-width: 270px;">
+				<html:option value="page">仅当前页（省额度，推荐）</html:option>
+				<html:option value="all">整篇文档（逐段后台翻译）</html:option>
+			</html:select>
+		</hbox>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="最短段落字符数（过短的标题/作者行会跳过）" flex="1" />
+			<html:input id="zhinfo-pref-pdfmin" type="text" style="min-width: 100px;" placeholder="20" />
+		</hbox>
+	</groupbox>
 	<groupbox>
 		<label><html:h2>测试与批量</html:h2></label>
 		<hbox align="center" class="zhinfo-prefs-row">

@@ -14,6 +14,9 @@
 		deeplFree: 'extensions.zhinfo.deepl.free',
 		mmEmail: 'extensions.zhinfo.mymemory.email',
 		mmSrc: 'extensions.zhinfo.mymemory.sourceLang',
+		pdfAuto: 'extensions.zhinfo.pdfAuto',
+		pdfScope: 'extensions.zhinfo.pdfScope',
+		pdfMin: 'extensions.zhinfo.pdfMinChars',
 	};
 
 	let initialized = false;
@@ -57,6 +60,24 @@
 		el.value = getStr(pref, '');
 		el.addEventListener('change', () => setStr(pref, el.value));
 		el.addEventListener('blur', () => setStr(pref, el.value));
+	}
+
+	function bindNumber(id, pref, dflt) {
+		const el = q(id);
+		if (!el) return;
+		const v = getStr(pref, String(dflt));
+		el.value = v;
+		el.addEventListener('change', () => {
+			let n = parseInt(el.value, 10);
+			if (isNaN(n) || n < 1) n = dflt;
+			el.value = String(n);
+			try {
+				Zotero.Prefs.set(pref, n, true);
+			}
+			catch (e) {
+				Zotero.logError(e);
+			}
+		});
 	}
 
 	function bindSelect(id, pref) {
@@ -160,6 +181,10 @@
 
 		bindText('zhinfo-pref-mm-email', P.mmEmail);
 		bindText('zhinfo-pref-mm-src', P.mmSrc);
+
+		bindCheck('zhinfo-pref-pdfauto', P.pdfAuto, false);
+		bindSelect('zhinfo-pref-pdfscope', P.pdfScope);
+		bindNumber('zhinfo-pref-pdfmin', P.pdfMin, 20);
 
 		const testBtn = q('zhinfo-btn-test');
 		if (testBtn) testBtn.addEventListener('click', onTest);

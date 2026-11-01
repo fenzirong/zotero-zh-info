@@ -58,6 +58,7 @@ ZHInfo = {
 			}
 			this.registerSection();
 			this.registerMenu();
+			this.registerReader();
 			await this.registerPrefPane();
 		}
 		catch (e) {
@@ -66,6 +67,17 @@ ZHInfo = {
 	},
 
 	async shutdown() {
+		try {
+			if (typeof ZHInfoBilingual != 'undefined' && ZHInfoBilingual) {
+				ZHInfoBilingual.shutdown();
+			}
+			if (typeof ZHInfoReader != 'undefined' && ZHInfoReader) {
+				ZHInfoReader.shutdown();
+			}
+		}
+		catch (e) {
+			Zotero.logError(e);
+		}
 		try {
 			if (this._sectionID && Zotero.ItemPaneManager) {
 				Zotero.ItemPaneManager.unregisterSection(this._sectionID);
@@ -207,6 +219,20 @@ ZHInfo = {
 		this._sectionID = id || null;
 		Zotero.debug('ZhInfo: section registered as ' + id);
 		return id;
+	},
+
+	registerReader() {
+		try {
+			if (typeof ZHInfoReader != 'undefined' && ZHInfoReader) {
+				ZHInfoReader.init({ pluginID: this.id });
+			}
+			if (typeof ZHInfoBilingual != 'undefined' && ZHInfoBilingual) {
+				ZHInfoBilingual.init({ pluginID: this.id });
+			}
+		}
+		catch (e) {
+			Zotero.logError(e);
+		}
 	},
 
 	registerMenu() {
