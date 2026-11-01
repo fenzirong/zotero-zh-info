@@ -21,3 +21,5 @@ pref("extensions.zhinfo.llm.textPrompt", "");
 pref("extensions.zhinfo.pdfAuto", false);
 pref("extensions.zhinfo.pdfScope", "page");
 pref("extensions.zhinfo.pdfMinChars", 20);
+pref("extensions.zhinfo.pdfMode", "inline");
+pref("extensions.zhinfo.pdfMode", "inline");

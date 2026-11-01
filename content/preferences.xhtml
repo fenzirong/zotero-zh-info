@@ -89,6 +89,12 @@
 			</html:select>
 		</hbox>
 		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="显示方式" flex="1" />
+			<html:select id="zhinfo-pref-pdfmode" style="min-width: 270px;">
+				<html:option value="inline">原位覆盖：保留原版面（推荐）</html:option>
+				<html:option value="reflow">重排阅读视图：段落下方附译文</html:option>
+			</html:select>
+		</hbox>		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="最短段落字符数（过短的标题/作者行会跳过）" flex="1" />
 			<html:input id="zhinfo-pref-pdfmin" type="text" style="min-width: 100px;" placeholder="20" />
 		</hbox>

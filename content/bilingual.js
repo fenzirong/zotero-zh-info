@@ -1,6 +1,7 @@
-/* PDF 双语对照阅读视图
- * 打开后在阅读器内以重排文本方式逐段显示原文 + 中文译文，每段右侧可单独取消。
- * 文本来源：优先 pdf.js 文本层（有坐标，可正确切段落），失败则回退 Zotero.PDFWorker.getFullText。
+/* PDF 双语：保留原版面（原位覆盖）+ 可选重排阅读视图
+ * inline 模式：译文精确覆盖在原段落矩形内（字号自适应），图片/表格/分栏等版式不动；
+ *              每段右上角 × 取消该段（恢复原文），顶栏可切换显示原文/译文、停止、清除。
+ * reflow 模式：抽取文字重排成阅读视图（原文 + 段下译文）。
  */
 
 if (typeof Zotero == 'undefined') {
@@ -12,12 +13,12 @@ var ZHInfoBilingual;
 ZHInfoBilingual = {
 	pluginID: null,
 	_states: null,
-	_toolbarDocs: null,
+	_docs: null,
 
 	init({ pluginID }) {
 		this.pluginID = pluginID;
 		this._states = new Map();
-		this._toolbarDocs = new WeakSet();
+		this._docs = new WeakSet();
 		this._onToolbar = (event) => this._handleToolbar(event);
 		try {
 			Zotero.Reader.registerEventListener('renderToolbar', this._onToolbar, pluginID);
@@ -44,7 +45,7 @@ ZHInfoBilingual = {
 		this._states = null;
 	},
 
-	// ------------------------------------------------------------ prefs
+	// ------------------------------------------------------------ prefs / utils
 
 	_pref(key, dflt) {
 		try {
@@ -73,8 +74,8 @@ ZHInfoBilingual = {
 				btn.id = 'zhb-toolbar-btn';
 				btn.type = 'button';
 				btn.className = 'zhb-toolbar-btn';
-				btn.title = '中文双语对照（逐段翻译，可单段取消）';
-				btn.textContent = '双语对照';
+				btn.title = '中文双语（保留原版面，逐段覆盖译文）';
+				btn.textContent = '双语';
 				btn.addEventListener('click', (event) => {
 					event.preventDefault();
 					event.stopPropagation();
@@ -106,13 +107,20 @@ ZHInfoBilingual = {
 	// ------------------------------------------------------------ 开关
 
 	toggle(reader) {
-		const id = reader.itemID;
-		const state = this._states.get(id);
-		if (state && state.root) {
+		const state = this._states.get(reader.itemID);
+		if (state && state.active) {
 			this._closeView(state, false);
 			return;
 		}
 		this.open(reader);
+	},
+
+	_modeFor(state) {
+		const mode = String(this._pref('pdfMode', 'inline'));
+		if (mode === 'reflow') return 'reflow';
+		const hasRect = state.blocks && state.blocks.some(b => b.rect);
+		if (!hasRect) return 'reflow';
+		return 'inline';
 	},
 
 	async open(reader) {
@@ -125,36 +133,47 @@ ZHInfoBilingual = {
 					attachmentID: id,
 					reader,
 					blocks: null,
-					root: null,
-					list: null,
-					headerEls: {},
+					active: false,
+					mode: null,
 					running: false,
 					aborted: false,
-					extracting: false,
+					showOriginal: false,
+					lastScale: 0,
+					lastPageCount: 0,
+					watcher: null,
+					bar: null,
+					barEls: {},
+					root: null,
+					list: null,
 				};
 				this._states.set(id, state);
 			}
-			if (state.root) return;
-
-			this._buildView(state);
+			if (state.active) return;
+			state.active = true;
 
 			if (!state.blocks) {
-				state.extracting = true;
 				this._setStatus(state, '正在提取文本…');
 				const scope = this._pref('pdfScope', 'page');
-				const blocks = await this.extract(state.reader, scope);
-				state.extracting = false;
-				if (!blocks.length) {
+				state.blocks = await this.extract(reader, scope);
+				if (!state.blocks.length) {
 					this._setStatus(state, '未能提取到文本（可能是扫描版 PDF）');
+					state.active = false;
 					return;
 				}
-				state.blocks = blocks;
-				this._renderList(state);
+			}
+
+			state.mode = this._modeFor(state);
+			if (state.mode === 'inline') {
+				this._buildBar(state);
+				this._renderInline(state);
+				this._watchView(state);
 			}
 			else {
+				this._buildView(state);
 				this._renderList(state);
 			}
 			this._setStatus(state, '共 ' + state.blocks.length + ' 段');
+			this._updateHeader(state);
 			this.run(state);
 		}
 		catch (e) {
@@ -190,12 +209,12 @@ ZHInfoBilingual = {
 		if (!total) return [];
 		let pages;
 		if (scope === 'page') {
-			let cur = 1;
+			let curPage = 1;
 			try {
-				cur = app.page || (app.pdfViewer && app.pdfViewer.currentPageNumber) || 1;
+				curPage = app.page || (app.pdfViewer && app.pdfViewer.currentPageNumber) || 1;
 			}
 			catch (e) { /* ignore */ }
-			pages = [Math.max(1, Math.min(total, cur))];
+			pages = [Math.max(1, Math.min(total, curPage))];
 		}
 		else {
 			pages = [];
@@ -204,6 +223,7 @@ ZHInfoBilingual = {
 
 		const minChars = Number(this._pref('pdfMinChars', 20)) || 20;
 		let all = [];
+		let idx = 0;
 		for (let pageNo of pages) {
 			let page;
 			try {
@@ -250,10 +270,24 @@ ZHInfoBilingual = {
 			}
 			const paras = this._itemsToParagraphs(items, width, height);
 			for (let p of paras) {
-				if (p.length >= minChars) all.push({ page: pageNo, src: p });
+				if (p.text.length >= minChars) {
+					all.push({
+						idx: idx++,
+						page: pageNo,
+						src: p.text,
+						rect: p.rect,
+						lines: p.lines,
+						avgH: p.avgH,
+						pageW: width,
+						pageH: height,
+						dst: '',
+						status: 'idle',
+						err: '',
+					});
+				}
 			}
 		}
-		return all.map((b, i) => ({ idx: i, page: b.page, src: b.src, dst: '', status: 'idle', err: '' }));
+		return all;
 	},
 
 	async _extractFromWorker(reader, scope) {
@@ -275,14 +309,13 @@ ZHInfoBilingual = {
 			const paras = this._linesToParagraphs(String(pages[pi] || '').split('\n'));
 			for (let p of paras) {
 				if (p.length >= minChars) {
-					out.push({ idx: idx++, page: pi + 1, src: p, dst: '', status: 'idle', err: '' });
+					out.push({ idx: idx++, page: pi + 1, src: p, rect: null, lines: 0, avgH: 0, dst: '', status: 'idle', err: '' });
 				}
 			}
 		}
 		return out;
 	},
-
-	// ------------------------------------------------------------ 文本 → 段落
+	// ------------------------------------------------------------ 文本 → 段落（保留几何信息）
 
 	_itemsToParagraphs(items, pageWidth, pageHeight) {
 		if (!items.length) return [];
@@ -297,7 +330,6 @@ ZHInfoBilingual = {
 		return this._columnToParagraphs(items, pageWidth, pageHeight);
 	},
 
-	/** 用中部的空白带判断是否双栏；是则返回 [左栏 items, 右栏 items]，否则 null */
 	_splitColumns(items, pageWidth) {
 		if (!items.length || !pageWidth) return null;
 		const bins = 24;
@@ -329,12 +361,10 @@ ZHInfoBilingual = {
 		return [left, right];
 	},
 
-	/** 单栏 / 单列内：行归并 + 段落切分 */
 	_columnToParagraphs(items, pageWidth, pageHeight) {
 		if (!items.length) return [];
 		const sorted = items.slice().sort((a, b) => (b.y - a.y) || (a.x - b.x));
 
-		// 1) 聚成行
 		const lines = [];
 		let cur = null;
 		for (let it of sorted) {
@@ -347,7 +377,6 @@ ZHInfoBilingual = {
 			}
 		}
 
-		// 2) 行内拼接
 		const lineObjs = lines.map((ln) => {
 			const arr = ln.items.slice().sort((a, b) => a.x - b.x);
 			let text = '';
@@ -371,7 +400,6 @@ ZHInfoBilingual = {
 
 		if (!lineObjs.length) return [];
 
-		// 3) 页眉页脚剔除（位置只作辅助，必须同时“短且无句末标点”）
 		const cleaned = lineObjs.filter((l) => {
 			if (l.text.length < 3) return false;
 			if (/^(page\s*)?\d+(\s*\/\s*\d+)?$/i.test(l.text)) return false;
@@ -384,7 +412,6 @@ ZHInfoBilingual = {
 		});
 		if (!cleaned.length) return [];
 
-		// 4) 行 → 段（按自上而下）
 		const ordered = cleaned.slice().sort((a, b) => b.y - a.y);
 		const heights = ordered.map((l) => l.h).sort((a, b) => a - b);
 		const medH = heights[Math.floor(heights.length / 2)] || 10;
@@ -393,9 +420,23 @@ ZHInfoBilingual = {
 		const colWidth = Math.max(1, colRight - colLeft);
 		const gapThreshold = medH * 1.45;
 
-		const paras = [];
-		let buf = '';
+		const out = [];
+		let curPara = null;
 		let prev = null;
+		const flush = () => {
+			if (!curPara) return;
+			const text = this._cleanPara(curPara.text);
+			if (text) {
+				out.push({
+					text,
+					rect: { x0: curPara.x0, x1: curPara.x1, y0: curPara.yBottom, y1: curPara.yTop },
+					lines: curPara.n,
+					avgH: curPara.hSum / Math.max(1, curPara.n),
+				});
+			}
+			curPara = null;
+		};
+
 		for (let l of ordered) {
 			const dgap = prev ? (prev.y - l.y) : 0;
 			const indented = prev ? ((l.x0 - prev.x0) > Math.max(6, medH * 0.6)) : false;
@@ -409,18 +450,32 @@ ZHInfoBilingual = {
 				|| indented
 				|| sizeChanged
 				|| (prevEndsSentence && prevEndsShort && dgap > medH * 0.2)
-				|| (buf.length + l.text.length > 900)
+				|| ((curPara ? curPara.text.length : 0) + l.text.length > 900)
 			);
-			if (newPara && buf.trim()) {
-				paras.push(this._cleanPara(buf));
-				buf = '';
+			if (newPara) flush();
+			if (!curPara) {
+				curPara = {
+					text: '',
+					x0: l.x0,
+					x1: l.x1,
+					yTop: l.y + (l.h || medH) * 0.82,
+					yBottom: l.y - (l.h || medH) * 0.95,
+					n: 0,
+					hSum: 0,
+				};
 			}
-			buf = this._appendLine(buf, l.text);
+			curPara.text = this._appendLine(curPara.text, l.text);
+			curPara.x0 = Math.min(curPara.x0, l.x0);
+			curPara.x1 = Math.max(curPara.x1, l.x1);
+			curPara.yBottom = Math.min(curPara.yBottom, l.y - (l.h || medH) * 0.95);
+			curPara.n++;
+			curPara.hSum += (l.h || medH);
 			prev = l;
 		}
-		if (buf.trim()) paras.push(this._cleanPara(buf));
-		return paras.filter((p) => p && p.length > 0);
+		flush();
+		return out;
 	},
+
 	_linesToParagraphs(lines) {
 		const out = [];
 		let buf = '';
@@ -449,7 +504,6 @@ ZHInfoBilingual = {
 		return out.filter((p) => p && p.length > 0);
 	},
 
-	/** 拼接行：行尾连字符时去连字符并直接相连 */
 	_appendLine(buf, line) {
 		if (!buf) return line;
 		if (/[A-Za-z]-$/.test(buf)) return buf.slice(0, -1) + line;
@@ -462,7 +516,6 @@ ZHInfoBilingual = {
 			.replace(/\s+([,.;:!?])/g, '$1')
 			.trim();
 	},
-
 	// ------------------------------------------------------------ 翻译
 
 	async run(state) {
@@ -478,10 +531,10 @@ ZHInfoBilingual = {
 			await this._translateBlock(state, b);
 			fails = (b.status === 'error') ? fails + 1 : 0;
 			if (fails >= 3) {
-				this._setStatus(state, '连续失败 3 次，已暂停（检查设置里的翻译服务）');
+				this._setStatus(state, '连续失败 3 次，已暂停（检查翻译服务设置）');
 				break;
 			}
-			await this._sleep(250);
+			await this._sleep(220);
 		}
 		state.running = false;
 		this._updateHeader(state);
@@ -491,7 +544,6 @@ ZHInfoBilingual = {
 		if (b.status === 'skipped') return;
 		b.status = 'loading';
 		b.err = '';
-		this._renderBlock(state, b);
 		try {
 			const out = await ZHInfoTranslate.translate(b.src, 'text');
 			if (b.status === 'skipped') return;
@@ -504,7 +556,7 @@ ZHInfoBilingual = {
 			b.status = 'error';
 			Zotero.logError(e);
 		}
-		this._renderBlock(state, b);
+		this._repaintBlock(state, b);
 		this._updateHeader(state);
 	},
 
@@ -521,7 +573,8 @@ ZHInfoBilingual = {
 			b.err = '';
 			b.status = 'idle';
 		}
-		this._renderList(state);
+		if (state.mode === 'inline') this._renderInline(state);
+		else this._renderList(state);
 		this._setStatus(state, '已清除译文');
 		this._updateHeader(state);
 	},
@@ -530,56 +583,272 @@ ZHInfoBilingual = {
 		b.status = 'skipped';
 		b.dst = '';
 		b.err = '';
-		this._renderBlock(state, b);
+		this._repaintBlock(state, b);
 		this._updateHeader(state);
 	},
 
-	// ------------------------------------------------------------ 视图
-
-	_injectStyle(doc) {
+	_repaintBlock(state, b) {
 		try {
-			if (!doc || !doc.head || this._toolbarDocs.has(doc)) return;
-			const style = doc.createElement('style');
-			style.textContent = [
-				'.zhb-toolbar-btn { font: inherit; font-size: 12px; padding: 2px 8px; margin: 0 4px; border-radius: 4px;'
-					+ ' border: 1px solid rgba(127,127,127,.5); background: transparent; color: inherit; cursor: pointer; }',
-				'.zhb-toolbar-btn:hover { background: rgba(127,127,127,.2); }',
-				'.zhb-overlay { position: fixed; inset: 0; z-index: 2147483000; overflow: auto; padding: 0;'
-					+ ' background: var(--material-background, #fff); color: inherit; font-size: 15px; }',
-				'.zhb-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px;'
-					+ ' padding: 10px 16px; border-bottom: 1px solid rgba(127,127,127,.35);'
-					+ ' background: var(--material-background, #fff); flex-wrap: wrap; }',
-				'.zhb-title { font-weight: 600; }',
-				'.zhb-status { font-size: 12px; opacity: .75; }',
-				'.zhb-btn { font: inherit; font-size: 12px; padding: 2px 10px; border-radius: 4px; cursor: pointer;'
-					+ ' border: 1px solid rgba(127,127,127,.5); background: transparent; color: inherit; }',
-				'.zhb-btn:hover { background: rgba(127,127,127,.18); }',
-				'.zhb-body { max-width: 820px; margin: 0 auto; padding: 20px 28px 120px; line-height: 1.85; }',
-				'.zhb-block { position: relative; padding: 10px 34px 14px 0; border-bottom: 1px dashed rgba(127,127,127,.3); }',
-				'.zhb-src { opacity: .62; font-size: 13px; }',
-				'.zhb-dst { margin-top: 6px; white-space: pre-wrap; }',
-				'.zhb-dst[data-status="idle"]::after { content: "（未翻译）"; opacity: .45; font-size: 12px; }',
-				'.zhb-dst[data-status="loading"]::after { content: "翻译中…"; opacity: .6; font-size: 12px; }',
-				'.zhb-dst[data-status="error"] { color: #d92b2b; font-size: 13px; }',
-				'.zhb-dst[data-status="skipped"] { opacity: .4; font-size: 13px; font-style: italic; }',
-				'.zhb-x { position: absolute; top: 8px; right: 0; width: 24px; height: 24px; line-height: 20px;'
-					+ ' border-radius: 50%; border: 1px solid rgba(127,127,127,.5); background: transparent;'
-					+ ' color: inherit; cursor: pointer; font-size: 13px; padding: 0; }',
-				'.zhb-x:hover { background: rgba(217,43,43,.15); border-color: #d92b2b; }',
-				'.zhb-page { font-size: 12px; opacity: .5; margin: 18px 0 4px; }',
-			].join('\n');
-			doc.head.appendChild(style);
-			this._toolbarDocs.add(doc);
+			if (state.mode !== 'inline') {
+				this._paintBlock(b);
+				return;
+			}
+			const views = this._pageViews(state);
+			for (let v of views) {
+				if (v.pageNo === b.page) this._renderInlinePage(state, v.div, v.pageNo);
+			}
 		}
 		catch (e) {
 			Zotero.logError(e);
 		}
 	},
 
+	// ------------------------------------------------------------ inline 视图（保留原版面）
+
+	_iframeWin(state) {
+		try {
+			return state.reader._iframeWindow;
+		}
+		catch (e) {
+			return null;
+		}
+	},
+
+	_scale(state) {
+		try {
+			const W = this._iframeWin(state).wrappedJSObject;
+			const s = W.PDFViewerApplication.pdfViewer.currentScale;
+			return s || 1;
+		}
+		catch (e) {
+			return 1;
+		}
+	},
+
+	_viewerApp(state) {
+		try {
+			const W = this._iframeWin(state).wrappedJSObject;
+			return W && W.PDFViewerApplication;
+		}
+		catch (e) {
+			return null;
+		}
+	},
+
+	/** 页面节点列表：[{ pageNo, div }]（只取 pdf.js 已创建的页面视图） */
+	_pageViews(state) {
+		const out = [];
+		try {
+			const app = this._viewerApp(state);
+			if (!app || !app.pdfViewer) return out;
+			const n = app.pagesCount || 0;
+			for (let i = 0; i < n; i++) {
+				let pv = null;
+				try {
+					pv = app.pdfViewer.getPageView(i);
+				}
+				catch (e) { /* ignore */ }
+				if (pv && pv.div) out.push({ pageNo: i + 1, div: pv.div });
+			}
+		}
+		catch (e) {
+			Zotero.logError(e);
+		}
+		return out;
+	},
+
+	/** 页面实际所在的文档（可能与 reader._iframeWindow.document 不同） */
+	_viewerDoc(state) {
+		try {
+			const views = this._pageViews(state);
+			for (let v of views) {
+				if (v.div && v.div.ownerDocument) return v.div.ownerDocument;
+			}
+		}
+		catch (e) { /* ignore */ }
+		try {
+			return this._iframeWin(state).document;
+		}
+		catch (e) {
+			return null;
+		}
+	},
+
+	_pageCount(state) {
+		return this._pageViews(state).length;
+	},
+
+	_watchView(state) {
+		if (state.watcher) clearInterval(state.watcher);
+		state.lastScale = this._scale(state);
+		state.lastPageCount = this._pageCount(state);
+		state.watcher = setInterval(() => {
+			try {
+				if (!state.active) return;
+				const s = this._scale(state);
+				const n = this._pageCount(state);
+				if (s !== state.lastScale || n !== state.lastPageCount) {
+					state.lastScale = s;
+					state.lastPageCount = n;
+					this._renderInline(state);
+				}
+			}
+			catch (e) {
+				Zotero.logError(e);
+			}
+		}, 400);
+	},
+
+	_renderInline(state) {
+		const views = this._pageViews(state);
+		for (let v of views) {
+			if (!state.blocks.some(b => b.page === v.pageNo)) continue;
+			this._renderInlinePage(state, v.div, v.pageNo);
+		}
+	},
+
+	_renderInlinePage(state, pageDiv, pageNo) {
+		const doc = pageDiv.ownerDocument;
+		const scale = this._scale(state);
+		const blocks = state.blocks.filter(b => b.page === pageNo && b.status === 'done' && b.rect);
+		let layer = pageDiv.querySelector('.zhb-inline-layer');
+		if (!blocks.length) {
+			if (layer) {
+				layer.textContent = '';
+				layer.style.display = 'none';
+			}
+			return;
+		}
+		if (!layer) {
+			layer = doc.createElement('div');
+			layer.className = 'zhb-inline-layer';
+			pageDiv.appendChild(layer);
+		}
+		layer.style.display = state.showOriginal ? 'none' : '';
+		layer.textContent = '';
+		let pageH = 0;
+		try {
+			pageH = pageDiv.getBoundingClientRect().height || pageDiv.clientHeight || 0;
+		}
+		catch (e) { /* ignore */ }
+		if (!pageH) return;
+		for (let b of blocks) {
+			const el = this._inlineEl(state, b, scale, pageH, doc);
+			if (el) layer.appendChild(el);
+		}
+	},
+
+	_inlineEl(state, b, scale, pageH, doc) {
+		if (!b.rect) return null;
+		const el = doc.createElement('div');
+		el.className = 'zhb-inline';
+		el.dataset.idx = String(b.idx);
+
+		const left = Math.max(0, b.rect.x0 * scale - 1.5);
+		const width = Math.max(14, (b.rect.x1 - b.rect.x0) * scale + 3);
+		const top = Math.max(0, pageH - b.rect.y1 * scale - 1.5);
+		const height = Math.max(12, (b.rect.y1 - b.rect.y0) * scale + 3);
+
+		el.style.left = left + 'px';
+		el.style.top = top + 'px';
+		el.style.width = width + 'px';
+		el.style.height = height + 'px';
+		const baseFs = Math.max(3.5, Math.min(48, (b.avgH || 10) * 1.02 * scale));
+		el.style.fontSize = baseFs + 'px';
+
+		const txt = doc.createElement('div');
+		txt.className = 'zhb-inline-text';
+		txt.textContent = b.dst || '';
+		el.appendChild(txt);
+
+		const x = doc.createElement('button');
+		x.type = 'button';
+		x.className = 'zhb-inline-x';
+		x.title = '取消该段翻译（恢复原文）';
+		x.textContent = '×';
+		x.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.skipBlock(state, b);
+		});
+		el.appendChild(x);
+
+		try {
+			const raf = (doc.defaultView || doc.ownerGlobal || {}).requestAnimationFrame;
+			if (raf) {
+				raf.call(doc.defaultView, () => {
+					let fs = baseFs;
+					let guard = 0;
+					while (txt.scrollHeight > el.clientHeight + 1 && fs > 3.5 && guard++ < 30) {
+						fs = fs - 0.5;
+						el.style.fontSize = fs + 'px';
+					}
+				});
+			}
+		}
+		catch (e) { /* ignore */ }
+
+		return el;
+	},
+
+	_buildBar(state) {
+		const doc = this._viewerDoc(state);
+		if (!doc) return;
+		this._injectStyle(doc);
+		const old = doc.getElementById('zhb-bar');
+		if (old) old.remove();
+
+		const bar = doc.createElement('div');
+		bar.id = 'zhb-bar';
+		bar.className = 'zhb-float';
+
+		const status = doc.createElement('span');
+		status.className = 'zhb-status';
+		status.textContent = '';
+
+		const mk = (label, fn) => {
+			const btn = doc.createElement('button');
+			btn.type = 'button';
+			btn.className = 'zhb-btn';
+			btn.textContent = label;
+			btn.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				try {
+					fn(btn);
+				}
+				catch (e) {
+					Zotero.logError(e);
+				}
+			});
+			return btn;
+		};
+
+		const btnStop = mk('停止', () => this.stop(state));
+		const btnClear = mk('清除', () => this.clear(state));
+		const btnToggle = mk('只看原文', (btn) => {
+			state.showOriginal = !state.showOriginal;
+			btn.textContent = state.showOriginal ? '显示译文' : '只看原文';
+			this._renderInline(state);
+		});
+		const btnClose = mk('关闭', () => this._closeView(state, false));
+
+		bar.appendChild(status);
+		bar.appendChild(btnStop);
+		bar.appendChild(btnClear);
+		bar.appendChild(btnToggle);
+		bar.appendChild(btnClose);
+		doc.documentElement.appendChild(bar);
+
+		state.bar = bar;
+		state.barEls = { status, btnStop, btnClear, btnToggle };
+	},
+
+	// ------------------------------------------------------------ reflow 视图（重排阅读）
+
 	_buildView(state) {
-		const reader = state.reader;
-		const doc = reader._iframeWindow && reader._iframeWindow.document;
-		if (!doc) throw new Error('无法访问阅读器文档');
+		const doc = this._viewerDoc(state);
+		if (!doc) return;
 		this._injectStyle(doc);
 		const old = doc.getElementById('zhb-overlay');
 		if (old) old.remove();
@@ -593,53 +862,35 @@ ZHInfoBilingual = {
 
 		const title = doc.createElement('span');
 		title.className = 'zhb-title';
-		title.textContent = '双语对照';
+		title.textContent = '双语阅读';
 
 		const status = doc.createElement('span');
 		status.className = 'zhb-status';
-		status.textContent = '';
 
-		const btnRun = doc.createElement('button');
-		btnRun.type = 'button';
-		btnRun.className = 'zhb-btn';
-		btnRun.textContent = '继续翻译';
-		btnRun.addEventListener('click', () => this.run(state));
-
-		const btnStop = doc.createElement('button');
-		btnStop.type = 'button';
-		btnStop.className = 'zhb-btn';
-		btnStop.textContent = '停止';
-		btnStop.addEventListener('click', () => this.stop(state));
-
-		const btnClear = doc.createElement('button');
-		btnClear.type = 'button';
-		btnClear.className = 'zhb-btn';
-		btnClear.textContent = '清除译文';
-		btnClear.addEventListener('click', () => this.clear(state));
-
-		const btnClose = doc.createElement('button');
-		btnClose.type = 'button';
-		btnClose.className = 'zhb-btn';
-		btnClose.textContent = '关闭';
-		btnClose.addEventListener('click', () => this._closeView(state, false));
-
-		let providerName = '';
-		try {
-			providerName = ZHInfoTranslate.providerName();
-		}
-		catch (e) { /* ignore */ }
-
-		const provider = doc.createElement('span');
-		provider.className = 'zhb-status';
-		provider.textContent = '服务：' + providerName;
+		const mk = (label, fn) => {
+			const btn = doc.createElement('button');
+			btn.type = 'button';
+			btn.className = 'zhb-btn';
+			btn.textContent = label;
+			btn.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				try {
+					fn();
+				}
+				catch (e) {
+					Zotero.logError(e);
+				}
+			});
+			return btn;
+		};
 
 		bar.appendChild(title);
 		bar.appendChild(status);
-		bar.appendChild(btnRun);
-		bar.appendChild(btnStop);
-		bar.appendChild(btnClear);
-		bar.appendChild(btnClose);
-		bar.appendChild(provider);
+		bar.appendChild(mk('继续翻译', () => this.run(state)));
+		bar.appendChild(mk('停止', () => this.stop(state)));
+		bar.appendChild(mk('清除译文', () => this.clear(state)));
+		bar.appendChild(mk('关闭', () => this._closeView(state, false)));
 
 		const body = doc.createElement('div');
 		body.className = 'zhb-body';
@@ -650,30 +901,7 @@ ZHInfoBilingual = {
 
 		state.root = root;
 		state.list = body;
-		state.headerEls = { status, btnRun, btnStop };
-	},
-
-	_setStatus(state, text) {
-		try {
-			if (state && state.headerEls && state.headerEls.status) state.headerEls.status.textContent = text;
-		}
-		catch (e) { /* ignore */ }
-	},
-
-	_updateHeader(state) {
-		try {
-			if (!state || !state.blocks) return;
-			const total = state.blocks.length;
-			let done = 0;
-			let skip = 0;
-			for (let b of state.blocks) {
-				if (b.status === 'done') done++;
-				if (b.status === 'skipped') skip++;
-			}
-			this._setStatus(state, done + '/' + total + (skip ? '（跳过 ' + skip + '）' : '') + (state.running ? ' · 翻译中' : ''));
-			if (state.headerEls && state.headerEls.btnRun) state.headerEls.btnRun.disabled = state.running;
-		}
-		catch (e) { /* ignore */ }
+		state.barEls = { status };
 	},
 
 	_renderList(state) {
@@ -737,28 +965,120 @@ ZHInfoBilingual = {
 		b.dstEl.dataset.status = status;
 	},
 
-	_renderBlock(state, b) {
+	// ------------------------------------------------------------ 状态 / 关闭
+
+	_setStatus(state, text) {
 		try {
-			this._paintBlock(b);
+			if (state && state.barEls && state.barEls.status) state.barEls.status.textContent = text;
+		}
+		catch (e) { /* ignore */ }
+	},
+
+	_updateHeader(state) {
+		try {
+			if (!state || !state.blocks) return;
+			const total = state.blocks.length;
+			let done = 0;
+			let skip = 0;
+			for (let b of state.blocks) {
+				if (b.status === 'done') done++;
+				if (b.status === 'skipped') skip++;
+			}
+			this._setStatus(state, done + '/' + total + (skip ? '（跳过 ' + skip + '）' : '') + (state.running ? ' · 翻译中' : ''));
+			const els = state.barEls || {};
+			if (els.btnStop) els.btnStop.disabled = !state.running;
+		}
+		catch (e) { /* ignore */ }
+	},
+
+	_closeView(state, immediate) {
+		try {
+			state.aborted = true;
+			state.active = false;
+			if (state.watcher) {
+				clearInterval(state.watcher);
+				state.watcher = null;
+			}
+			const doc = this._viewerDoc(state);
+			if (doc) {
+				const bar = doc.getElementById('zhb-bar');
+				if (bar) bar.remove();
+				const ov = doc.getElementById('zhb-overlay');
+				if (ov) ov.remove();
+				const layers = doc.querySelectorAll('.zhb-inline-layer');
+				for (let i = 0; i < layers.length; i++) layers[i].remove();
+				if (immediate) {
+					const btn = doc.getElementById('zhb-toolbar-btn');
+					if (btn) btn.remove();
+				}
+			}
+			state.bar = null;
+			state.barEls = {};
+			state.root = null;
+			state.list = null;
+			if (state.blocks) {
+				for (let b of state.blocks) {
+					b.el = null;
+					b.dstEl = null;
+				}
+			}
 		}
 		catch (e) {
 			Zotero.logError(e);
 		}
 	},
 
-	_closeView(state, immediate) {
+	// ------------------------------------------------------------ 样式
+
+	_injectStyle(doc) {
 		try {
-			state.aborted = true;
-			const root = state.root;
-			const doc = root && root.ownerDocument;
-			if (root && root.parentNode) root.remove();
-			state.root = null;
-			state.list = null;
-			state.headerEls = {};
-			if (immediate && doc) {
-				const btn = doc.getElementById('zhb-toolbar-btn');
-				if (btn) btn.remove();
-			}
+			if (!doc || !doc.head) return;
+			if (doc.getElementById('zhb-style')) return;
+			const style = doc.createElement('style');
+			style.id = 'zhb-style';
+			style.textContent = [
+				'.zhb-toolbar-btn { font: inherit; font-size: 12px; padding: 2px 8px; margin: 0 4px; border-radius: 4px;'
+					+ ' border: 1px solid rgba(127,127,127,.5); background: transparent; color: inherit; cursor: pointer; }',
+				'.zhb-toolbar-btn:hover { background: rgba(127,127,127,.2); }',
+				'.zhb-inline-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; }',
+				'.zhb-inline { position: absolute; overflow: hidden; pointer-events: auto; background: #fff; color: #111;'
+					+ ' padding: 1px 2px; box-sizing: border-box; border-radius: 2px; line-height: 1.22;'
+					+ ' font-family: system-ui, -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif; }',
+				'.zhb-inline-text { display: block; }',
+				'.zhb-inline-x { position: absolute; top: -8px; right: -8px; width: 15px; height: 15px; padding: 0;'
+					+ ' line-height: 13px; font-size: 11px; border-radius: 50%; cursor: pointer; opacity: 0;'
+					+ ' border: 1px solid rgba(120,120,120,.85); background: #fff; color: #444; }',
+				'.zhb-inline:hover .zhb-inline-x { opacity: 1; }',
+				'.zhb-float { position: fixed; right: 18px; bottom: 18px; z-index: 2147483000; display: flex;'
+					+ ' align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px;'
+					+ ' background: rgba(255,255,255,.96); border: 1px solid rgba(120,120,120,.45);'
+					+ ' box-shadow: 0 2px 10px rgba(0,0,0,.18); color: #111; font-family: system-ui, sans-serif; }',
+				'.zhb-overlay { position: fixed; inset: 0; z-index: 2147483000; overflow: auto;'
+					+ ' background: var(--material-background, #fff); color: inherit; font-size: 15px; }',
+				'.zhb-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px;'
+					+ ' padding: 10px 16px; border-bottom: 1px solid rgba(127,127,127,.35);'
+					+ ' background: var(--material-background, #fff); flex-wrap: wrap; }',
+				'.zhb-title { font-weight: 600; }',
+				'.zhb-status { font-size: 12px; opacity: .75; }',
+				'.zhb-btn { font: inherit; font-size: 12px; padding: 2px 10px; border-radius: 4px; cursor: pointer;'
+					+ ' border: 1px solid rgba(127,127,127,.5); background: transparent; color: inherit; }',
+				'.zhb-btn:hover { background: rgba(127,127,127,.18); }',
+				'.zhb-btn[disabled] { opacity: .5; cursor: default; }',
+				'.zhb-body { max-width: 820px; margin: 0 auto; padding: 20px 28px 120px; line-height: 1.85; }',
+				'.zhb-block { position: relative; padding: 10px 34px 14px 0; border-bottom: 1px dashed rgba(127,127,127,.3); }',
+				'.zhb-src { opacity: .62; font-size: 13px; }',
+				'.zhb-dst { margin-top: 6px; white-space: pre-wrap; }',
+				'.zhb-dst[data-status="idle"]::after { content: "（未翻译）"; opacity: .45; font-size: 12px; }',
+				'.zhb-dst[data-status="loading"]::after { content: "翻译中…"; opacity: .6; font-size: 12px; }',
+				'.zhb-dst[data-status="error"] { color: #d92b2b; font-size: 13px; }',
+				'.zhb-dst[data-status="skipped"] { opacity: .4; font-size: 13px; font-style: italic; }',
+				'.zhb-x { position: absolute; top: 8px; right: 0; width: 24px; height: 24px; line-height: 20px;'
+					+ ' border-radius: 50%; border: 1px solid rgba(127,127,127,.5); background: transparent;'
+					+ ' color: inherit; cursor: pointer; font-size: 13px; padding: 0; }',
+				'.zhb-x:hover { background: rgba(217,43,43,.15); border-color: #d92b2b; }',
+				'.zhb-page { font-size: 12px; opacity: .5; margin: 18px 0 4px; }',
+			].join('\n');
+			doc.head.appendChild(style);
 		}
 		catch (e) {
 			Zotero.logError(e);

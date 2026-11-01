@@ -17,6 +17,7 @@
 		pdfAuto: 'extensions.zhinfo.pdfAuto',
 		pdfScope: 'extensions.zhinfo.pdfScope',
 		pdfMin: 'extensions.zhinfo.pdfMinChars',
+		pdfMode: 'extensions.zhinfo.pdfMode',
 	};
 
 	let initialized = false;
@@ -185,6 +186,7 @@
 		bindCheck('zhinfo-pref-pdfauto', P.pdfAuto, false);
 		bindSelect('zhinfo-pref-pdfscope', P.pdfScope);
 		bindNumber('zhinfo-pref-pdfmin', P.pdfMin, 20);
+		bindSelect('zhinfo-pref-pdfmode', P.pdfMode);
 
 		const testBtn = q('zhinfo-btn-test');
 		if (testBtn) testBtn.addEventListener('click', onTest);
