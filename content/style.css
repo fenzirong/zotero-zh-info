@@ -1,0 +1,130 @@
+/* 条目信息面板「中文标题与摘要」分区样式 */
+
+.zhinfo-pane {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 6px 2px 4px;
+	box-sizing: border-box;
+}
+
+.zhinfo-block {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.zhinfo-label {
+	font-weight: 600;
+	font-size: 0.95em;
+	opacity: 0.85;
+}
+
+.zhinfo-input,
+.zhinfo-textarea {
+	width: 100%;
+	box-sizing: border-box;
+	font: inherit;
+	font-size: 0.95em;
+	color: var(--fill-primary, inherit);
+	background: var(--material-background, #fff);
+	border: 1px solid var(--fill-quinary, #c9c9c9);
+	border-radius: 5px;
+	padding: 5px 7px;
+}
+
+.zhinfo-textarea {
+	min-height: 84px;
+	line-height: 1.5;
+	resize: vertical;
+}
+
+.zhinfo-input:focus,
+.zhinfo-textarea:focus {
+	outline: none;
+	border-color: var(--color-accent, #2f6feb);
+}
+
+.zhinfo-input:disabled,
+.zhinfo-textarea:disabled {
+	opacity: 0.7;
+}
+
+.zhinfo-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.zhinfo-btn {
+	font: inherit;
+	font-size: 0.92em;
+	line-height: 1.6;
+	padding: 1px 10px;
+	border-radius: 5px;
+	cursor: pointer;
+	border: 1px solid var(--fill-quinary, #c9c9c9);
+	background: var(--material-button, transparent);
+	color: var(--fill-primary, inherit);
+}
+
+.zhinfo-btn:hover {
+	background: var(--fill-quinary, #eee);
+}
+
+.zhinfo-btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.zhinfo-btn.zhinfo-primary {
+	border-color: var(--color-accent, #2f6feb);
+	color: var(--color-accent, #2f6feb);
+}
+
+.zhinfo-btn.zhinfo-link {
+	border: none;
+	background: none;
+	padding: 0;
+	text-decoration: underline;
+	color: var(--color-accent, #2f6feb);
+}
+
+.zhinfo-status {
+	font-size: 0.9em;
+	opacity: 0.85;
+}
+
+.zhinfo-status[data-kind="busy"] {
+	color: var(--color-accent, #2f6feb);
+	opacity: 1;
+}
+
+.zhinfo-status[data-kind="ok"] {
+	color: #12805c;
+	opacity: 1;
+}
+
+.zhinfo-status[data-kind="error"] {
+	color: #d92b2b;
+	opacity: 1;
+}
+
+.zhinfo-footer {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	font-size: 0.9em;
+	padding-top: 2px;
+}
+
+.zhinfo-provider {
+	opacity: 0.7;
+}
+
+.zhinfo-hint {
+	opacity: 0.7;
+	font-size: 0.95em;
+}

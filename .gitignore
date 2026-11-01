@@ -1,0 +1,10 @@
+# 构建产物
+*.xpi
+# 本地测试脚手架 / 临时目录
+_*
+.tmp*
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,88 @@
+<vbox id="zhinfo-prefs-pane">
+	<linkset>
+		<html:link rel="localization" href="zhinfo.ftl"/>
+	</linkset>
+
+	<groupbox>
+		<label><html:h2>中文标题与摘要</html:h2></label>
+		<description class="zhinfo-prefs-description">在条目信息面板新增「中文标题」「中文摘要」两个分区，条目打开时可自动翻译并填入。译文保存在条目的「其他（Extra）」字段中，可随 Zotero 同步。</description>
+		<checkbox id="zhinfo-pref-auto" label="打开条目时自动翻译并填入缺失的中文标题 / 中文摘要" />
+		<checkbox id="zhinfo-pref-skipzh" label="原文已是中文时跳过翻译" />
+	</groupbox>
+
+	<groupbox>
+		<label><html:h2>翻译服务</html:h2></label>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="服务" flex="1" control="zhinfo-pref-provider" />
+			<html:select id="zhinfo-pref-provider" style="min-width: 270px;">
+				<html:option value="mymemory">MyMemory（免费、免配置，国内可直连）</html:option>
+				<html:option value="llm">大模型 API（OpenAI 兼容，质量最好）</html:option>
+				<html:option value="deepl">DeepL API（需 API Key）</html:option>
+				<html:option value="google">Google 翻译（免费接口，国内通常需代理）</html:option>
+			</html:select>
+		</hbox>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="目标语言" flex="1" />
+			<html:select id="zhinfo-pref-targetlang" style="min-width: 270px;">
+				<html:option value="zh-CN">简体中文</html:option>
+				<html:option value="zh-TW">繁體中文</html:option>
+			</html:select>
+		</hbox>
+	</groupbox>
+
+	<groupbox id="zhinfo-group-llm">
+		<label><html:h2>大模型 API（OpenAI 兼容）</html:h2></label>
+		<description class="zhinfo-prefs-description">支持 DeepSeek、硅基流动、Moonshot、OpenAI、Ollama 等任何兼容 /chat/completions 的服务。Base URL 例：https://api.deepseek.com</description>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="Base URL" flex="1" />
+			<html:input id="zhinfo-pref-llm-base" type="text" style="min-width: 320px;" placeholder="https://api.deepseek.com" />
+		</hbox>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="API Key" flex="1" />
+			<html:input id="zhinfo-pref-llm-key" type="password" style="min-width: 320px;" placeholder="sk-..." />
+		</hbox>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="模型名称" flex="1" />
+			<html:input id="zhinfo-pref-llm-model" type="text" style="min-width: 320px;" placeholder="deepseek-chat" />
+		</hbox>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="额外要求（可选）" flex="1" />
+			<html:input id="zhinfo-pref-llm-extra" type="text" style="min-width: 320px;" placeholder="例：保留专业术语的英文原词" />
+		</hbox>
+	</groupbox>
+
+	<groupbox id="zhinfo-group-deepl">
+		<label><html:h2>DeepL API</html:h2></label>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="API Key" flex="1" />
+			<html:input id="zhinfo-pref-deepl-key" type="password" style="min-width: 320px;" />
+		</hbox>
+		<checkbox id="zhinfo-pref-deepl-free" label="使用 DeepL 免费版端点（api-free.deepl.com）" />
+	</groupbox>
+
+	<groupbox id="zhinfo-group-mymemory">
+		<label><html:h2>MyMemory</html:h2></label>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="联系邮箱（可选，提高限额）" flex="1" />
+			<html:input id="zhinfo-pref-mm-email" type="text" style="min-width: 320px;" />
+		</hbox>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="原文语言" flex="1" />
+			<html:input id="zhinfo-pref-mm-src" type="text" style="min-width: 120px;" placeholder="en" />
+		</hbox>
+	</groupbox>
+
+	<groupbox id="zhinfo-group-google">
+		<label><html:h2>Google 翻译</html:h2></label>
+		<description class="zhinfo-prefs-description">使用 translate.googleapis.com 的免费接口，无需配置。若所在网络无法访问 Google，请改用「大模型 API」。</description>
+	</groupbox>
+
+	<groupbox>
+		<label><html:h2>测试与批量</html:h2></label>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<button id="zhinfo-btn-test" label="测试当前配置" />
+			<button id="zhinfo-btn-batch" label="批量翻译所选条目" />
+		</hbox>
+		<description id="zhinfo-test-result" class="zhinfo-prefs-result" />
+	</groupbox>
+</vbox>

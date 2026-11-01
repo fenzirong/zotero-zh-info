@@ -1,0 +1,28 @@
+/* 设置面板样式 */
+
+.zhinfo-prefs-description {
+	opacity: 0.8;
+	max-width: 46em;
+}
+
+.zhinfo-prefs-row {
+	margin-top: 6px;
+}
+
+.zhinfo-prefs-result {
+	margin-top: 8px;
+	min-height: 1.4em;
+	white-space: pre-wrap;
+}
+
+.zhinfo-prefs-result[data-kind="ok"] {
+	color: #12805c;
+}
+
+.zhinfo-prefs-result[data-kind="error"] {
+	color: #d92b2b;
+}
+
+.zhinfo-prefs-result[data-kind="busy"] {
+	opacity: 0.8;
+}

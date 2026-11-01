@@ -1,0 +1,18 @@
+{
+  "addons": {
+    "zhinfo@zotero.local": {
+      "updates": [
+        {
+          "version": "1.1.1",
+          "update_link": "https://example.com/zhinfo-1.1.1.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "7.0",
+              "strict_max_version": "10.9.9"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
