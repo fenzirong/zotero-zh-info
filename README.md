@@ -2,7 +2,13 @@
 
 给 Zotero 的条目信息面板加两个字段：**中文标题**、**中文摘要**，并可自动翻译填入。
 
-## 安装
+## 下载安装
+
+到 [Releases](https://github.com/fenzirong/zotero-zh-info/releases) 下载最新的 `zhinfo-x.y.z.xpi`，
+Zotero → 工具 → 插件 → 齿轮 → Install Plugin From File… 安装即可。
+
+也可以自己打包（见文末「安装」与 `build.ps1`）。
+## 本地打包安装
 
 1. 打包：`pwsh -File build.ps1` → 得到 `zhinfo-1.0.0.xpi`
 2. Zotero → 工具 → 插件 → 齿轮 → Install Plugin From File… → 选 xpi
@@ -58,7 +64,13 @@ build.ps1                打包脚本
 - 分区 API 为 `Zotero.ItemPaneManager.registerSection`；header 用 FTL `.label`、sidenav 用 FTL `.tooltiptext`（与 Zotero 内置 `section-abstract` 一致）。
 - 抓日志：启动 Zotero 加 `-ZoteroDebugText`，筛选 `ZhInfo:`。
 - 已知限制：只对常规文献条目启用（附件/笔记不显示）；Zotero 语言的 FTL 缺失时标题会用 JS 兜底，侧栏提示为空。
-## 安装失败排查（Zotero 8/9/10）
+## 下载安装
+
+到 [Releases](https://github.com/fenzirong/zotero-zh-info/releases) 下载最新的 `zhinfo-x.y.z.xpi`，
+Zotero → 工具 → 插件 → 齿轮 → Install Plugin From File… 安装即可。
+
+也可以自己打包（见文末「安装」与 `build.ps1`）。
+## 本地打包安装失败排查（Zotero 8/9/10）
 
 Zotero 10 的 Gecko 分支对插件 manifest 有一条**强制校验**（见 `omni.ja` 内 `Extension.sys.mjs`）：
 
