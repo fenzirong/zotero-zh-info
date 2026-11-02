@@ -111,7 +111,8 @@ ZHInfoEngine = {
 	},
 
 	/** 返回 { args, environment } */
-	buildInvocation({ exe, engine, pdfPath, outDir, startPage, limit }) {
+	buildInvocation({ exe, engine, pdfPath, outDir, startPage, limit, caps }) {
+		caps = caps || {};
 		const cfg = this._llmConfig();
 		const langIn = String(ZHInfo.pref('engineLangIn', 'en'));
 		const thread = String(ZHInfo.pref('engineThread', 4));
@@ -125,11 +126,11 @@ ZHInfoEngine = {
 			if (pages) args.push('-p', pages);
 			args.push('-li', langIn);
 			args.push('-lo', this._langOut());
-			const service = String(ZHInfo.pref('pdf2zhService', 'OpenAI')).trim() || 'OpenAI';
+			const service = (String(ZHInfo.pref('pdf2zhService', 'openai')).trim() || 'openai').toLowerCase();
 			args.push('-s', service + (cfg.model ? (':' + cfg.model) : ''));
 			args.push('-o', outDir);
 			args.push('-t', thread);
-			if (ZHInfo.pref('engineSkipScanned', false)) args.push('--ultrafast');
+			if (ZHInfo.pref('engineSkipScanned', false) && caps.ultrafast) args.push('--ultrafast');
 			// pdf2zh 的 OpenAI 系翻译器从环境变量取凭据
 			environmentAppend = true;
 			environment.OPENAI_API_KEY = cfg.key || '';
@@ -150,9 +151,41 @@ ZHInfoEngine = {
 		if (cfg.key) args.push('--openai-api-key', cfg.key);
 		args.push('--watermark-output-mode', 'no_watermark');
 		args.push('--output', outDir);
-		args.push('--qps', thread);
+		if (caps.qps) args.push('--qps', thread);
 		if (ZHInfo.pref('engineSkipScanned', false)) args.push('--skip-scanned-detection');
 		return { args, environment, environmentAppend };
+	},
+
+	// ------------------------------------------------------------ 能力探测
+
+	_helpCache: null,
+
+	/** 读一次 --help，判断该版本支持哪些开关（不同版本差异很大） */
+	async caps(exe) {
+		if (!this._helpCache) this._helpCache = new Map();
+		if (this._helpCache.has(exe)) return this._helpCache.get(exe);
+		let text = '';
+		try {
+			text = await Zotero.Utilities.Internal.subprocess(exe, ['--help']);
+		}
+		catch (e) {
+			try {
+				text = await Zotero.Utilities.Internal.subprocess(exe, ['-h']);
+			}
+			catch (e2) {
+				text = '';
+			}
+		}
+		const c = {
+			qps: /--qps/.test(text),
+			ultrafast: /--ultrafast/.test(text),
+			mode: /--mode/.test(text),
+			pages: /--pages/.test(text),
+			skipScanned: /--skip-scanned-detection/.test(text),
+		};
+		this._helpCache.set(exe, c);
+		Zotero.debug('ZhInfo: engine caps ' + JSON.stringify(c));
+		return c;
 	},
 
 	// ------------------------------------------------------------ 队列
@@ -271,6 +304,7 @@ ZHInfoEngine = {
 		const outDir = PathUtils.join(Zotero.getTempDirectory().path, 'zhinfo-' + attachment.id + '-' + Date.now());
 		await IOUtils.makeDirectory(outDir, { createAncestors: true });
 
+		const caps = await this.caps(av.exe);
 		const inv = this.buildInvocation({
 			exe: av.exe,
 			engine: av.engine,
@@ -278,6 +312,7 @@ ZHInfoEngine = {
 			outDir,
 			startPage: job.startPage,
 			limit: job.limit,
+			caps,
 		});
 
 		const Subprocess = ChromeUtils.importESModule('resource://gre/modules/Subprocess.sys.mjs').Subprocess;

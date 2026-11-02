@@ -27,7 +27,7 @@ pref("extensions.zhinfo.pdfFollow", true);
 pref("extensions.zhinfo.pdfBarPos", "");
 pref("extensions.zhinfo.pdfEngine", "auto");
 pref("extensions.zhinfo.pdfEnginePath", "");
-pref("extensions.zhinfo.pdf2zhService", "OpenAI");
+pref("extensions.zhinfo.pdf2zhService", "openai");
 pref("extensions.zhinfo.engineThread", 4);
 pref("extensions.zhinfo.engineLangIn", "en");
 pref("extensions.zhinfo.engineSkipScanned", false);

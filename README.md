@@ -172,3 +172,15 @@ pdf.js 的文字层是绝对定位的，同一区域塞两份文字必然重叠�
 - 阅读器浮条点「生成双语PDF」→ 任务进后台串行队列，浮条会实时显示进度；「取消引擎」可中止当前或排队任务。
 - 也可在文献列表**右键 →「用引擎生成双语 PDF（后台队列）」**，对多个条目批量排队（自动取各自的 PDF 附件）。
 - 每个任务完成/失败都会弹 Zotero 通知；生成的 `*-dual.pdf` 自动作为子附件挂上并打 `zhinfo-translated` 标签。
+#### pdf2zh 安装与两个必钉版本（实测）
+
+```
+uv tool install --python 3.12 pdf2zh
+uv pip install --python "C:\Users\fzh\AppData\Roaming\uv\tools\pdf2zh\Scripts\python.exe" "bitstring<5" "tencentcloud-sdk-python-tmt==3.0.1300"
+```
+
+- `bitstring`：5.x 移除了 `BitStream`，pdf2zh 内置的 babeldoc 会 ImportError。
+- `tencentcloud-sdk-python-tmt`：新版删掉了 `TextTranslateRequest`，pdf2zh 导入即崩；`3.0.1300` 仍有该类。
+- 服务名必须**小写**（`openai` / `deepseek` / `silicon` / `zhipu` / `openailiked` …），插件默认 `openai` 并自动补 `:模型名`；
+  走 OpenAI 兼容端点时用环境变量传凭据（插件已自动设置 `OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL`）。
+- 插件运行时会 pdf2zh --help **探测该版本支持哪些开关**（如 `--ultrafast`、`--qps`、`--pages`），只传存在的，避免版本差异报错。
