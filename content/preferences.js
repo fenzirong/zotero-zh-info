@@ -25,6 +25,7 @@
 		pdf2zhService: 'extensions.zhinfo.pdf2zhService',
 		engineThread: 'extensions.zhinfo.engineThread',
 		engineThinking: 'extensions.zhinfo.engineThinking',
+		enginePages: 'extensions.zhinfo.enginePages',
 		updateAuto: 'extensions.zhinfo.updateAuto',
 		engineLangIn: 'extensions.zhinfo.engineLangIn',
 		engineSkipScanned: 'extensions.zhinfo.engineSkipScanned',
@@ -70,6 +71,7 @@
 		if (!el) return;
 		el.value = getStr(pref, '');
 		el.addEventListener('change', () => setStr(pref, el.value));
+		el.addEventListener('input', () => setStr(pref, el.value));
 		el.addEventListener('blur', () => setStr(pref, el.value));
 	}
 
@@ -275,6 +277,7 @@
 		bindText('zhinfo-pref-pdf2zhservice', P.pdf2zhService);
 		bindNumber('zhinfo-pref-enginethread', P.engineThread, 4);
 		bindSelect('zhinfo-pref-enginethinking', P.engineThinking);
+		bindSelect('zhinfo-pref-enginepages', P.enginePages);
 		bindCheck('zhinfo-pref-updateauto', P.updateAuto, true);
 		initUpdateUI();
 		bindText('zhinfo-pref-enginelangin', P.engineLangIn);

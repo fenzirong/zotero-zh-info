@@ -1166,17 +1166,16 @@ ZHInfoBilingual = {
 				this._setStatus(state, '未检测到引擎，请先安装：uv tool install --python 3.12 --with "bitstring<5" BabelDOC');
 				return;
 			}
-			const startPage = this._currentPage(state) || 1;
-			const limit = this._limitValue(state);
-			this._setStatus(state, '引擎启动：' + (limit === Infinity ? '整篇' : ('第 ' + startPage + ' 页起 ' + limit + ' 页')));
+			const startPage = 1;
+			const limit = ZHInfoEngine._engineLimit();
+			this._setStatus(state, '引擎启动：' + (limit === Infinity ? '整篇文档' : ('前 ' + limit + ' 页')));
 			const res = await ZHInfoEngine.enqueue({
 				attachment: att,
 				startPage,
 				limit,
-				onProgress: (chunk) => {
-					const parts = String(chunk).split(/[\r\n]+/).filter(s => s.trim());
-					const line = parts.length ? parts[parts.length - 1].trim() : '';
-					if (line) this._setStatus(state, '『引擎』' + line.slice(0, 90));
+				onProgress: (line) => {
+					// engine.js 已做 500ms 节流与去重，这里只做展示
+					if (line) this._setStatus(state, '『引擎』' + String(line).slice(0, 90));
 				},
 			});
 			this._setStatus(state, '双语 PDF 已生成并作为子附件导入');

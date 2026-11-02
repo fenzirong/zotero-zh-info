@@ -37,19 +37,19 @@
 		<description class="zhinfo-prefs-hint">支持 DeepSeek、硅基流动、Moonshot、OpenAI、Ollama 等兼容 /chat/completions 的服务。PDF 引擎也复用这里。</description>
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="Base URL" flex="1" />
-			<textbox id="zhinfo-pref-llm-base" flex="1" placeholder="https://api.deepseek.com" />
+			<html:input type="text" id="zhinfo-pref-llm-base" style="flex: 1;" placeholder="https://api.deepseek.com" />
 		</hbox>
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="API Key" flex="1" />
-			<textbox id="zhinfo-pref-llm-key" type="password" flex="1" placeholder="sk-..." />
+			<html:input type="password" id="zhinfo-pref-llm-key"  style="flex: 1;" placeholder="sk-..." />
 		</hbox>
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="模型名称" flex="1" />
-			<textbox id="zhinfo-pref-llm-model" flex="1" placeholder="deepseek-chat" />
+			<html:input type="text" id="zhinfo-pref-llm-model" style="flex: 1;" placeholder="deepseek-chat" />
 		</hbox>
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="额外要求" flex="1" />
-			<textbox id="zhinfo-pref-llm-extra" flex="1" placeholder="可选，例：保留专业术语的英文原词" />
+			<html:input type="text" id="zhinfo-pref-llm-extra" style="flex: 1;" placeholder="可选，例：保留专业术语的英文原词" />
 		</hbox>
 	</groupbox>
 
@@ -57,7 +57,7 @@
 		<caption label="DeepL API" />
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="API Key" flex="1" />
-			<textbox id="zhinfo-pref-deepl-key" type="password" flex="1" />
+			<html:input type="password" id="zhinfo-pref-deepl-key"  style="flex: 1;" />
 		</hbox>
 		<checkbox id="zhinfo-pref-deepl-free" label="使用免费版端点（api-free.deepl.com）" />
 	</groupbox>
@@ -66,11 +66,11 @@
 		<caption label="MyMemory" />
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="联系邮箱" flex="1" />
-			<textbox id="zhinfo-pref-mm-email" flex="1" placeholder="可选，填写可提高每日限额" />
+			<html:input type="text" id="zhinfo-pref-mm-email" style="flex: 1;" placeholder="可选，填写可提高每日限额" />
 		</hbox>
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="原文语言" flex="1" />
-			<textbox id="zhinfo-pref-mm-src" flex="1" placeholder="en" />
+			<html:input type="text" id="zhinfo-pref-mm-src" style="flex: 1;" placeholder="en" />
 		</hbox>
 	</groupbox>
 
@@ -96,17 +96,28 @@
 		<description id="zhinfo-engine-status" class="zhinfo-prefs-status" />
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="可执行文件" flex="1" />
-			<textbox id="zhinfo-pref-enginepath" flex="1" placeholder="留空自动探测 ~/.local/bin/babeldoc.exe" />
+			<html:input type="text" id="zhinfo-pref-enginepath" style="flex: 1;" placeholder="留空自动探测 ~/.local/bin/babeldoc.exe" />
 		</hbox>
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="原文语言" flex="1" />
-			<textbox id="zhinfo-pref-enginelangin" flex="1" placeholder="en" />
+			<html:input type="text" id="zhinfo-pref-enginelangin" style="flex: 1;" placeholder="en" />
 		</hbox>
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="并发线程" flex="1" />
-			<textbox id="zhinfo-pref-enginethread" flex="1" placeholder="4" />
+			<html:input type="text" id="zhinfo-pref-enginethread" style="flex: 1;" placeholder="4" />
 		</hbox>
 		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="引擎翻译页数" flex="1" />
+			<menulist id="zhinfo-pref-enginepages" style="min-width: 240px;">
+				<menupopup>
+					<menuitem label="整篇文档（默认，推荐）" value="all" />
+					<menuitem label="仅前 1 页（试效果）" value="1" />
+					<menuitem label="前 2 页" value="2" />
+					<menuitem label="前 5 页" value="5" />
+					<menuitem label="前 10 页" value="10" />
+				</menupopup>
+			</menulist>
+		</hbox>		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="引擎思考模式" flex="1" />
 			<menulist id="zhinfo-pref-enginethinking" style="min-width: 240px;">
 				<menupopup>
@@ -150,7 +161,7 @@
 		<checkbox id="zhinfo-pref-pdffollow" label="跟随翻阅：翻到新的一页自动翻译该页（受页数上限约束）" />
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="最短段落字符" flex="1" />
-			<textbox id="zhinfo-pref-pdfmin" flex="1" placeholder="20" />
+			<html:input type="text" id="zhinfo-pref-pdfmin" style="flex: 1;" placeholder="20" />
 		</hbox>
 	</groupbox>
 

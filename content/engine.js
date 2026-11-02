@@ -103,6 +103,14 @@ ZHInfoEngine = {
 		return t.toLowerCase().startsWith('zh') ? 'zh' : t;
 	},
 
+	/** 引擎页数：与阅读器"翻译页数"无关，默认整篇 */
+	_engineLimit() {
+		const raw = String(ZHInfo.pref('enginePages', 'all'));
+		if (raw === 'all' || raw === '' ) return Infinity;
+		const n = parseInt(raw, 10);
+		return (isNaN(n) || n < 1) ? Infinity : n;
+	},
+
 	_pagesArg(startPage, limit) {
 		if (limit === Infinity || !limit) return null;
 		const from = Math.max(1, startPage || 1);
@@ -219,6 +227,7 @@ ZHInfoEngine = {
 		args.push('--watermark-output-mode', 'no_watermark');
 		args.push('--output', outDir);
 		if (caps.qps) args.push('--qps', thread);
+		if (caps.reportInterval) args.push('--report-interval', String(ZHInfo.pref('engineReportInterval', 2)));
 		if ((thinking === 'disabled' || thinking === 'enabled') && caps.thinking) {
 			args.push('--openai-thinking', thinking);
 		}
@@ -253,6 +262,7 @@ ZHInfoEngine = {
 			pages: /--pages/.test(text),
 			skipScanned: /--skip-scanned-detection/.test(text),
 			thinking: /--openai-thinking/.test(text),
+			reportInterval: /--report-interval/.test(text),
 		};
 		this._helpCache.set(exe, c);
 		Zotero.debug('ZhInfo: engine caps ' + JSON.stringify(c));
@@ -433,16 +443,28 @@ ZHInfoEngine = {
 		job.proc = proc;
 
 		let tail = '';
+		let lastPush = 0;
+		let lastLine = '';
 		const pump = async (stream) => {
 			try {
 				let str;
 				while ((str = await stream.readString())) {
-					tail = (tail + str).slice(-4000);
-					if (job.onProgress) {
-						try {
-							job.onProgress(str);
+					tail = (tail + str).slice(-2000);
+					if (job._tick) job._tick();
+					// 引擎进度条默认每 0.1s 重绘一次，直接逐块写 DOM 会把 Zotero 拖卡，
+					// 这里按时间节流（500ms）且只在文本变化时回调。
+					const now = Date.now();
+					if (job.onProgress && (now - lastPush) >= 500) {
+						lastPush = now;
+						const parts = String(tail).split(/[\r\n]+/).filter(s => s.trim());
+						const line = parts.length ? parts[parts.length - 1].trim() : '';
+						if (line && line !== lastLine) {
+							lastLine = line;
+							try {
+								job.onProgress(line);
+							}
+							catch (e) { /* ignore */ }
 						}
-						catch (e) { /* ignore */ }
 					}
 				}
 			}
@@ -452,7 +474,24 @@ ZHInfoEngine = {
 		const pOut = pump(proc.stdout);
 		const pErr = proc.stderr ? pump(proc.stderr) : Promise.resolve();
 
+		// 看门狗：长时间无任何输出时，多半是被限流后指数退避重试，提示用户而不是干等
+		let lastTick = Date.now();
+		const stallTimer = setInterval(() => {
+			if (!job.proc) return;
+			if ((Date.now() - lastTick) < 120000) return;
+			lastTick = Date.now();
+			if (job.onProgress) {
+				try {
+					job.onProgress('（引擎 120 秒无输出，可能在重试/被限流；可在设置里把并发线程调成 1）');
+				}
+				catch (e) { /* ignore */ }
+			}
+		}, 20000);
+		const _origPumpTick = () => { lastTick = Date.now(); };
+		job._tick = _origPumpTick;
+
 		const { exitCode } = await proc.wait();
+		clearInterval(stallTimer);
 		await Promise.all([pOut, pErr]);
 		job.proc = null;
 

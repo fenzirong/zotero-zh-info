@@ -36,10 +36,16 @@
 	margin-right: 10px;
 }
 
-.zhinfo-prefs-row > textbox,
+.zhinfo-prefs-row > input,
 .zhinfo-prefs-row > menulist {
 	min-width: 260px;
 	max-width: 460px;
+	height: auto;
+}
+
+.zhinfo-prefs-row > input {
+	padding: 3px 6px;
+	box-sizing: border-box;
 }
 
 .zhinfo-prefs-row > button {
