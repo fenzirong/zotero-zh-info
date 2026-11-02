@@ -1,148 +1,82 @@
-/* 设置面板样式：面板按 XHTML 解析，全部使用 HTML 元素，配色跟随 Zotero 主题（深浅色自适应） */
+/* 设置面板样式（XUL 面板：不要给 groupbox 设 display，否则 [hidden] 失效） */
 
 #zhinfo-prefs-pane {
-	display: block;
-	color: inherit;
-	line-height: 1.5;
-	max-width: 52em;
+	max-width: 780px;
 }
 
 .zhinfo-prefs-lead {
-	margin: 0 0 16px;
+	margin: 0 0 12px;
 	opacity: 0.85;
 }
 
 .zhinfo-prefs-group {
-	display: block;
-	margin: 0 0 16px;
-	padding: 12px 14px;
-	border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
-	border-radius: 8px;
-	background: color-mix(in srgb, currentColor 3%, transparent);
+	margin: 0 0 14px;
+	padding: 10px 12px;
 }
 
-.zhinfo-prefs-group > h2 {
-	margin: 0 0 8px;
-	padding-bottom: 6px;
-	font-size: 1.02em;
+.zhinfo-prefs-group > caption {
 	font-weight: 700;
-	border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+	font-size: 1.02em;
+	margin-bottom: 6px;
 }
 
 .zhinfo-prefs-hint {
-	display: block;
 	margin: 0 0 8px;
 	font-size: 0.92em;
 	opacity: 0.72;
-}
-
-.zhinfo-prefs-note {
-	font-size: 0.86em;
-	font-style: normal;
-	opacity: 0.6;
-	white-space: nowrap;
+	max-width: 56em;
 }
 
 .zhinfo-prefs-row {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 8px 12px;
-	margin-top: 8px;
+	margin-top: 6px;
 }
 
 .zhinfo-prefs-row > label {
-	flex: 0 0 auto;
-	min-width: 8.5em;
 	opacity: 0.9;
+	margin-right: 10px;
 }
 
-.zhinfo-prefs-row > select,
-.zhinfo-prefs-row > input[type="text"],
-.zhinfo-prefs-row > input[type="password"] {
-	flex: 0 1 auto;
+.zhinfo-prefs-row > textbox,
+.zhinfo-prefs-row > menulist {
 	min-width: 260px;
-	max-width: 100%;
-	padding: 3px 6px;
-	border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-	border-radius: 4px;
-	background: Field;
-	color: FieldText;
+	max-width: 460px;
 }
 
-.zhinfo-prefs-row > input[type="text"]:focus,
-.zhinfo-prefs-row > input[type="password"]:focus,
-.zhinfo-prefs-row > select:focus {
-	outline: 2px solid #2f6feb;
-	outline-offset: 1px;
-}
-
-.zhinfo-prefs-check {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	margin-top: 8px;
-	cursor: pointer;
-}
-
-.zhinfo-prefs-check > input {
-	flex: 0 0 auto;
-	margin: 0;
-}
-
-.zhinfo-prefs-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 10px;
-}
-
-.zhinfo-prefs-actions > button,
 .zhinfo-prefs-row > button {
-	padding: 4px 14px;
-	border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-	border-radius: 5px;
-	background: color-mix(in srgb, currentColor 6%, transparent);
-	color: inherit;
-	cursor: pointer;
+	margin-left: 8px;
+	min-width: 96px;
 }
 
-.zhinfo-prefs-actions > button:hover,
-.zhinfo-prefs-row > button:hover {
-	background: color-mix(in srgb, currentColor 12%, transparent);
+.zhinfo-prefs-group > checkbox {
+	margin-top: 6px;
 }
 
 .zhinfo-prefs-code {
-	display: block;
-	margin: 10px 0 4px;
-	padding: 7px 10px;
-	border-radius: 5px;
-	background: color-mix(in srgb, currentColor 7%, transparent);
+	margin: 8px 0 0;
+	padding: 6px 9px;
 	font-family: ui-monospace, Menlo, Consolas, monospace;
-	font-size: 0.88em;
-	white-space: pre-wrap;
-	word-break: break-all;
+	font-size: 0.9em;
+	border-radius: 4px;
+	opacity: 0.9;
+	border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
 }
 
 .zhinfo-prefs-status {
-	margin-top: 6px;
-	font-size: 0.9em;
-	white-space: pre-wrap;
-	word-break: break-all;
+	margin: 6px 0 0;
 	min-height: 1.2em;
-	opacity: 0.85;
+	font-size: 0.9em;
+	opacity: 0.9;
+	white-space: pre-wrap;
 }
 
-.zhinfo-prefs-status[data-kind="ok"] { color: #12805c; opacity: 1; }
-.zhinfo-prefs-status[data-kind="error"] { color: #d92b2b; opacity: 1; }
+.zhinfo-prefs-status[data-kind="ok"] { color: #12805c; }
+.zhinfo-prefs-status[data-kind="error"] { color: #d92b2b; }
 
 .zhinfo-prefs-result {
-	margin-top: 10px;
+	margin-top: 8px;
 	min-height: 1.3em;
-	padding: 0;
 	white-space: pre-wrap;
-	word-break: break-word;
 }
 
 .zhinfo-prefs-result[data-kind="ok"] { color: #12805c; }
 .zhinfo-prefs-result[data-kind="error"] { color: #d92b2b; }
-.zhinfo-prefs-result[data-kind="busy"] { opacity: 0.8; }

@@ -94,10 +94,12 @@
 		const el = q(id);
 		if (!el) return;
 		el.value = getStr(pref, '');
-		el.addEventListener('change', () => {
+		const onPick = () => {
 			setStr(pref, el.value);
 			updateVisibility();
-		});
+		};
+		el.addEventListener('command', onPick);
+		el.addEventListener('change', onPick);
 	}
 
 	function bindCheck(id, pref, fallback) {
@@ -218,10 +220,13 @@
 		bindSelect('zhinfo-pref-pdfmode', P.pdfMode);
 
 		const testBtn = q('zhinfo-btn-test');
-		if (testBtn) testBtn.addEventListener('click', onTest);
+		if (testBtn) {
+			testBtn.addEventListener('command', onTest);
+			testBtn.addEventListener('click', onTest);
+		}
 		const engineBtn = q('zhinfo-btn-engine');
 	if (engineBtn) {
-		engineBtn.addEventListener('click', async () => {
+		const onEngineTest = async () => {
 			setEngineStatus('正在检测引擎…', 'busy');
 			try {
 				const E = Zotero.ZhInfoEngine || (typeof ZHInfoEngine != 'undefined' ? ZHInfoEngine : null);
@@ -233,11 +238,16 @@
 				Zotero.logError(e);
 				setEngineStatus('检测失败：' + (e && e.message ? e.message : e), 'error');
 			}
-		});
+		};
+		engineBtn.addEventListener('command', onEngineTest);
+		engineBtn.addEventListener('click', onEngineTest);
 	}
 
 	const batchBtn = q('zhinfo-btn-batch');
-		if (batchBtn) batchBtn.addEventListener('click', onBatch);
+		if (batchBtn) {
+			batchBtn.addEventListener('command', onBatch);
+			batchBtn.addEventListener('click', onBatch);
+		}
 
 		updateVisibility();
 	}

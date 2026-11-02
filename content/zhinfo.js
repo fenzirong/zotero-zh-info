@@ -298,6 +298,7 @@ ZHInfo = {
 				src: 'content/preferences.xhtml',
 				id: 'zhinfo-pane',
 				label: '中文标题与摘要',
+				defaultXUL: true,
 				scripts: ['content/preferences.js'],
 				stylesheets: ['content/preferences.css'],
 			});

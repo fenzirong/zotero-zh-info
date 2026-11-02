@@ -208,3 +208,14 @@ uv pip install --python "C:\Users\fzh\AppData\Roaming\uv\tools\pdf2zh\Scripts\py
 
 实测（商汤 sensenova-6.8-flash-lite）：裸请求 `content=None`、`reasoning_tokens=2048`；
 加 `thinking:disabled` 后 `content` 正常、产出双语 PDF 且页面内检出中文。
+### 设置面板必须是 XUL 面板（v2.1.8+）
+
+Zotero 的设置窗口本身是 **XUL 文档**。若用 XHTML 写法（`<input>`/`<select>`/`<button>`）注册面板，
+这些元素会落进 XUL 命名空间，**只是画出来的空壳**：能看到，但点击毫无反应（表现为"设置无法改动"）。
+另外 `html:` 前缀在插件面板里未声明，会直接 `prefix not bound to a namespace`，整块面板加载失败。
+
+正确做法（本插件 v2.1.8 起）：
+- `Zotero.PreferencePanes.register({ ..., defaultXUL: true })`
+- 控件用原生 XUL：`groupbox/caption`、`checkbox`、`menulist+menupopup+menuitem`、`textbox`、`button`、`description`、`hbox/vbox`
+- 事件用 `command`（XUL），不是 `click`
+- 不要给 `groupbox` 写 `display`，否则 `hidden` 属性失效（分组过滤会失灵）
