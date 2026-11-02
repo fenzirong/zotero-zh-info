@@ -1,13 +1,58 @@
-/* 设置面板样式 */
+/* 设置面板样式（面板按 XHTML 解析，元素用 HTML，避免 XUL 命名空间问题） */
+
+#zhinfo-prefs-pane { display: block; }
+
+.zhinfo-prefs-group {
+	display: block;
+	margin: 0 0 18px;
+}
+
+.zhinfo-prefs-group > h2 {
+	margin: 0 0 6px;
+	font-size: 1.05em;
+	font-weight: 700;
+}
 
 .zhinfo-prefs-description {
+	display: block;
 	opacity: 0.8;
 	max-width: 46em;
+	margin: 0 0 8px;
+	line-height: 1.45;
 }
 
 .zhinfo-prefs-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
 	margin-top: 6px;
 }
+
+.zhinfo-prefs-row > label {
+	flex: 1 1 auto;
+	min-width: 11em;
+}
+
+.zhinfo-prefs-row > select,
+.zhinfo-prefs-row > input[type="text"],
+.zhinfo-prefs-row > input[type="password"] {
+	min-width: 240px;
+	max-width: 420px;
+	padding: 3px 6px;
+}
+
+.zhinfo-prefs-row > button {
+	padding: 3px 12px;
+}
+
+.zhinfo-prefs-check {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 6px;
+}
+
+.zhinfo-prefs-check > input { margin: 0; }
 
 .zhinfo-prefs-result {
 	margin-top: 8px;
@@ -15,14 +60,6 @@
 	white-space: pre-wrap;
 }
 
-.zhinfo-prefs-result[data-kind="ok"] {
-	color: #12805c;
-}
-
-.zhinfo-prefs-result[data-kind="error"] {
-	color: #d92b2b;
-}
-
-.zhinfo-prefs-result[data-kind="busy"] {
-	opacity: 0.8;
-}
+.zhinfo-prefs-result[data-kind="ok"] { color: #12805c; }
+.zhinfo-prefs-result[data-kind="error"] { color: #d92b2b; }
+.zhinfo-prefs-result[data-kind="busy"] { opacity: 0.8; }

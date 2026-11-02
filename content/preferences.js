@@ -104,6 +104,7 @@
 		if (!el) return;
 		el.checked = getBool(pref, fallback);
 		el.addEventListener('command', () => setBool(pref, el.checked));
+		el.addEventListener('change', () => setBool(pref, el.checked));
 		el.addEventListener('click', () => {
 			setTimeout(() => setBool(pref, el.checked), 0);
 		});
