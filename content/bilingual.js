@@ -120,6 +120,7 @@ ZHInfoBilingual = {
 		if (mode === 'reflow') return 'reflow';
 		const hasRect = state.blocks && state.blocks.some(b => b.rect);
 		if (!hasRect) return 'reflow';
+		if (!this._rotationOK(state)) return 'reflow';
 		return 'inline';
 	},
 
@@ -748,61 +749,130 @@ ZHInfoBilingual = {
 	},
 
 	_renderInline(state) {
-		const views = this._pageViews(state);
-		for (let v of views) {
-			if (!state.blocks.some(b => b.page === v.pageNo)) continue;
-			this._renderInlinePage(state, v.div, v.pageNo);
+		// 结构变化（缩放 / 页面变化 / 清除 / 切显示）时整体重排
+		try {
+			if (!state.pages) state.pages = new Map();
+			for (let gp of state.pages.values()) {
+				gp.layer.textContent = '';
+				gp.els.clear();
+			}
+			const views = this._pageViews(state);
+			for (let v of views) {
+				const hasDone = state.blocks.some(b => b.page === v.pageNo && b.status === 'done' && b.rect);
+				const existing = state.pages.get(v.pageNo);
+				if (!hasDone) {
+					if (existing) existing.layer.style.display = 'none';
+					continue;
+				}
+				const gp = this._ensurePage(state, v.pageNo, v.div);
+				gp.layer.style.display = state.showOriginal ? 'none' : '';
+				for (let b of state.blocks) {
+					if (b.page !== v.pageNo) continue;
+					this._syncBlock(state, b);
+				}
+			}
+		}
+		catch (e) {
+			Zotero.logError(e);
 		}
 	},
 
-	_renderInlinePage(state, pageDiv, pageNo) {
+	/** 页面容器（layer + 元素表）懒创建 */
+	_ensurePage(state, pageNo, pageDiv) {
+		if (!state.pages) state.pages = new Map();
+		let gp = state.pages.get(pageNo);
+		if (gp) return gp;
 		const doc = pageDiv.ownerDocument;
-		const scale = this._scale(state);
-		const blocks = state.blocks.filter(b => b.page === pageNo && b.status === 'done' && b.rect);
 		let layer = pageDiv.querySelector('.zhb-inline-layer');
-		if (!blocks.length) {
-			if (layer) {
-				layer.textContent = '';
-				layer.style.display = 'none';
-			}
-			return;
-		}
 		if (!layer) {
 			layer = doc.createElement('div');
 			layer.className = 'zhb-inline-layer';
 			pageDiv.appendChild(layer);
 		}
-		layer.style.display = state.showOriginal ? 'none' : '';
-		layer.textContent = '';
-		let pageH = 0;
-		try {
-			pageH = pageDiv.getBoundingClientRect().height || pageDiv.clientHeight || 0;
+		gp = { pageDiv, layer, els: new Map() };
+		state.pages.set(pageNo, gp);
+		return gp;
+	},
+
+	/** 单块增量同步：只新增/更新/移除这一块的元素，不重建整页 */
+	_syncBlock(state, b) {
+		const gp = state.pages && state.pages.get(b.page);
+		if (!gp) return;
+		const want = (b.status === 'done' && b.dst && b.rect);
+		let el = gp.els.get(b.idx);
+		if (!want) {
+			if (el) {
+				el.remove();
+				gp.els.delete(b.idx);
+			}
+			return;
 		}
-		catch (e) { /* ignore */ }
-		if (!pageH) return;
-		for (let b of blocks) {
-			const el = this._inlineEl(state, b, scale, pageH, doc);
-			if (el) layer.appendChild(el);
+		if (!el) {
+			el = this._makeEl(state, b, gp);
+			if (!el) return;
+			gp.layer.appendChild(el);
+			gp.els.set(b.idx, el);
+			this._fitEl(el);
+			return;
+		}
+		if (el._dst !== b.dst) {
+			el._dst = b.dst;
+			el._txtEl.textContent = b.dst;
+			this._fitEl(el);
 		}
 	},
 
-	_inlineEl(state, b, scale, pageH, doc) {
-		if (!b.rect) return null;
+	/** 该块下方到下一块之间的空白（PDF 点），可用作译文的额外高度 */
+	_gapBelow(state, b) {
+		let best = null;
+		for (let o of state.blocks) {
+			if (o === b || o.page !== b.page || !o.rect) continue;
+			if (o.rect.y1 < b.rect.y0) {
+				if (best == null || o.rect.y1 > best) best = o.rect.y1;
+			}
+		}
+		if (best == null) return 0;
+		const gap = Math.max(0, b.rect.y0 - best);
+		const ownH = Math.max(1, b.rect.y1 - b.rect.y0);
+		return Math.min(gap, ownH * 1.5);
+	},
+
+	_makeEl(state, b, gp) {
+		const doc = gp.pageDiv.ownerDocument;
+		const scale = this._scale(state);
+		let pageH = 0;
+		try {
+			pageH = gp.pageDiv.getBoundingClientRect().height || gp.pageDiv.clientHeight || 0;
+		}
+		catch (e) { /* ignore */ }
+		if (!pageH) return null;
+
+		const widthPt = b.rect.x1 - b.rect.x0;
+		const heightPt = b.rect.y1 - b.rect.y0;
+		if (widthPt * scale < 24 || heightPt * scale < 7) return null;
+
+		const gapPt = this._gapBelow(state, b);
+		const left = Math.max(0, b.rect.x0 * scale - 1);
+		const top = Math.max(0, pageH - b.rect.y1 * scale - 1);
+		const width = Math.max(16, widthPt * scale + 3);
+		const ownH = Math.max(9, heightPt * scale);
+		const availH = ownH + Math.max(0, gapPt * scale);
+		const baseFs = Math.max(5, Math.min(42, (b.avgH || 10) * 1.02 * scale));
+
 		const el = doc.createElement('div');
 		el.className = 'zhb-inline';
 		el.dataset.idx = String(b.idx);
-
-		const left = Math.max(0, b.rect.x0 * scale - 1.5);
-		const width = Math.max(14, (b.rect.x1 - b.rect.x0) * scale + 3);
-		const top = Math.max(0, pageH - b.rect.y1 * scale - 1.5);
-		const height = Math.max(12, (b.rect.y1 - b.rect.y0) * scale + 3);
-
 		el.style.left = left + 'px';
 		el.style.top = top + 'px';
 		el.style.width = width + 'px';
-		el.style.height = height + 'px';
-		const baseFs = Math.max(3.5, Math.min(48, (b.avgH || 10) * 1.02 * scale));
+		el.style.minHeight = ownH + 'px';
+		el.style.maxHeight = availH + 'px';
 		el.style.fontSize = baseFs + 'px';
+		try {
+			const NL = String.fromCharCode(10);
+			el.title = (b.src || '') + (b.dst ? (NL + NL + '——' + NL + NL + b.dst) : '');
+		}
+		catch (e) { /* ignore */ }
 
 		const txt = doc.createElement('div');
 		txt.className = 'zhb-inline-text';
@@ -821,22 +891,94 @@ ZHInfoBilingual = {
 		});
 		el.appendChild(x);
 
-		try {
-			const raf = (doc.defaultView || doc.ownerGlobal || {}).requestAnimationFrame;
-			if (raf) {
-				raf.call(doc.defaultView, () => {
-					let fs = baseFs;
-					let guard = 0;
-					while (txt.scrollHeight > el.clientHeight + 1 && fs > 3.5 && guard++ < 30) {
-						fs = fs - 0.5;
-						el.style.fontSize = fs + 'px';
-					}
-				});
-			}
-		}
-		catch (e) { /* ignore */ }
-
+		el._txtEl = txt;
+		el._baseFs = baseFs;
+		el._ownH = ownH;
+		el._availH = availH;
+		el._dst = b.dst;
 		return el;
+	},
+
+	/** 字号适配：先直接放，放不下就二分缩小（最多 5 次测量），再不行才截断 */
+	_fitEl(el) {
+		try {
+			const txt = el._txtEl;
+			const win = el.ownerDocument.defaultView;
+			const avail = el._availH;
+			const base = el._baseFs;
+			const floor = Math.max(4, base * 0.62);
+
+			txt.style.display = 'block';
+			txt.style.webkitLineClamp = '';
+			txt.style.webkitBoxOrient = '';
+			txt.style.overflow = 'hidden';
+
+			el.style.fontSize = base + 'px';
+			if (txt.scrollHeight <= avail + 1) return;
+
+			let lo = floor;
+			let hi = base;
+			for (let i = 0; i < 5; i++) {
+				const mid = (lo + hi) / 2;
+				el.style.fontSize = mid + 'px';
+				if (txt.scrollHeight <= avail + 1) lo = mid;
+				else hi = mid;
+			}
+			const useFs = Math.max(floor, lo);
+			el.style.fontSize = useFs + 'px';
+			if (txt.scrollHeight <= avail + 1) return;
+
+			// 仍放不下：按行数截断，悬停看全文
+			let lh = useFs * 1.24;
+			try {
+				const cs = win.getComputedStyle(el);
+				const parsed = parseFloat(cs.lineHeight);
+				if (parsed > 0) lh = parsed;
+			}
+			catch (e) { /* ignore */ }
+			const maxLines = Math.max(1, Math.floor(avail / lh));
+			txt.style.display = '-webkit-box';
+			txt.style.webkitLineClamp = String(maxLines);
+			txt.style.webkitBoxOrient = 'vertical';
+		}
+		catch (e) {
+			Zotero.logError(e);
+		}
+	},
+
+	_repaintBlock(state, b) {
+		try {
+			if (state.mode !== 'inline') {
+				this._paintBlock(b);
+				return;
+			}
+			if (!state.pages) state.pages = new Map();
+			if (!state.pages.get(b.page)) {
+				const views = this._pageViews(state);
+				for (let v of views) {
+					if (v.pageNo === b.page) {
+						this._ensurePage(state, b.page, v.div);
+						break;
+					}
+				}
+			}
+			this._syncBlock(state, b);
+		}
+		catch (e) {
+			Zotero.logError(e);
+		}
+	},
+
+	_rotationOK(state) {
+		try {
+			const app = this._viewerApp(state);
+			const pv = app.pdfViewer.getPageView(0);
+			const rot = (pv && pv.rotation) || 0;
+			return (rot % 360) === 0;
+		}
+		catch (e) {
+			return true;
+		}
 	},
 
 	_buildBar(state) {
@@ -915,10 +1057,24 @@ ZHInfoBilingual = {
 		});
 		const btnClose = mk('关闭', () => this._closeView(state, false));
 
+		const btnEngine = mk('生成双语PDF', () => this._runEngine(state));
+		btnEngine.title = '调用开源引擎生成保留原版面的双语 PDF，并导入为子附件';
+		const btnAbortEngine = mk('取消引擎', () => {
+			try {
+				ZHInfoEngine.abort(state.reader.itemID);
+				this._setStatus(state, '已取消引擎任务');
+			}
+			catch (e) {
+				Zotero.logError(e);
+			}
+		});
+
 		bar.appendChild(handle);
 		bar.appendChild(status);
 		bar.appendChild(label);
 		bar.appendChild(pageSel);
+		bar.appendChild(btnEngine);
+		bar.appendChild(btnAbortEngine);
 		bar.appendChild(btnStop);
 		bar.appendChild(btnClear);
 		bar.appendChild(btnToggle);
@@ -931,6 +1087,47 @@ ZHInfoBilingual = {
 		this._restoreBarPos(state, bar);
 	},
 
+	/** 调用开源引擎（BabelDOC / PDFMathTranslate）生成保留原版面的双语 PDF */
+	async _runEngine(state) {
+		try {
+			const attID = state.reader.itemID;
+			const att = Zotero.Items.get(attID);
+			if (!att) return;
+			if (ZHInfoEngine.isRunning(attID)) {
+				this._setStatus(state, '引擎任务进行中…');
+				return;
+			}
+			const av = await ZHInfoEngine.available();
+			if (!av.ok) {
+				this._setStatus(state, '未检测到引擎，请先安装：uv tool install --python 3.12 --with "bitstring<5" BabelDOC');
+				return;
+			}
+			const startPage = this._currentPage(state) || 1;
+			const limit = this._limitValue(state);
+			this._setStatus(state, '引擎启动：' + (limit === Infinity ? '整篇' : ('第 ' + startPage + ' 页起 ' + limit + ' 页')));
+			const res = await ZHInfoEngine.run({
+				attachment: att,
+				startPage,
+				limit,
+				onProgress: (chunk) => {
+					const parts = String(chunk).split(/[\r\n]+/).filter(s => s.trim());
+					const line = parts.length ? parts[parts.length - 1].trim() : '';
+					if (line) this._setStatus(state, '『引擎』' + line.slice(0, 90));
+				},
+			});
+			this._setStatus(state, '双语 PDF 已生成并作为子附件导入');
+			try {
+				await Zotero.Reader.open(res.attachment.id);
+			}
+			catch (e) {
+				Zotero.logError(e);
+			}
+		}
+		catch (e) {
+			Zotero.logError(e);
+			this._setStatus(state, '引擎失败：' + (e && e.message ? e.message : e));
+		}
+	},
 	// ------------------------------------------------------------ reflow 视图（重排阅读）
 
 	_buildView(state) {
@@ -1108,6 +1305,7 @@ ZHInfoBilingual = {
 			}
 			state.bar = null;
 			state.barEls = {};
+			state.pages = new Map();
 			state.root = null;
 			state.list = null;
 			if (state.blocks) {
@@ -1265,9 +1463,10 @@ ZHInfoBilingual = {
 				'.zhb-toolbar-btn:hover { background: rgba(127,127,127,.2); }',
 				'.zhb-inline-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; }',
 				'.zhb-inline { position: absolute; overflow: hidden; pointer-events: auto; background: #fff; color: #111;'
-					+ ' padding: 1px 2px; box-sizing: border-box; border-radius: 2px; line-height: 1.22;'
+					+ ' padding: 1px 2px 1px 4px; box-sizing: border-box; border-radius: 2px; line-height: 1.24;'
+					+ ' border-left: 2px solid rgba(47,111,235,.45);'
 					+ ' font-family: system-ui, -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif; }',
-				'.zhb-inline-text { display: block; }',
+				'.zhb-inline-text { display: block; overflow: hidden; }',
 				'.zhb-inline-x { position: absolute; top: -8px; right: -8px; width: 15px; height: 15px; padding: 0;'
 					+ ' line-height: 13px; font-size: 11px; border-radius: 50%; cursor: pointer; opacity: 0;'
 					+ ' border: 1px solid rgba(120,120,120,.85); background: #fff; color: #444; }',

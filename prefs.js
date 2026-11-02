@@ -25,3 +25,6 @@ pref("extensions.zhinfo.pdfMode", "inline");
 pref("extensions.zhinfo.pdfPages", "3");
 pref("extensions.zhinfo.pdfFollow", true);
 pref("extensions.zhinfo.pdfBarPos", "");
+pref("extensions.zhinfo.pdfEnginePath", "");
+pref("extensions.zhinfo.engineLangIn", "en");
+pref("extensions.zhinfo.engineSkipScanned", false);

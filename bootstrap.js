@@ -44,6 +44,7 @@ async function startup({ id, version, rootURI }) {
 		Services.scriptloader.loadSubScript(rootURI + 'content/translate.js');
 		Services.scriptloader.loadSubScript(rootURI + 'content/reader.js');
 		Services.scriptloader.loadSubScript(rootURI + 'content/bilingual.js');
+		Services.scriptloader.loadSubScript(rootURI + 'content/engine.js');
 		Services.scriptloader.loadSubScript(rootURI + 'content/zhinfo.js');
 
 		ZHInfo.init({

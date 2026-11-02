@@ -77,6 +77,19 @@
 		<description class="zhinfo-prefs-description">使用 translate.googleapis.com 的免费接口，无需配置。若所在网络无法访问 Google，请改用「大模型 API」。</description>
 	</groupbox>
 
+	<groupbox id="zhinfo-group-engine">
+		<label><html:h2>PDF 引擎（真正保留原版面）</html:h2></label>
+		<description class="zhinfo-prefs-description">在阅读器浮条点「生成双语PDF」时，调用开源引擎 BabelDOC（沉浸式翻译官方开源后端）/ PDFMathTranslate 生成新的双语 PDF：图表公式不动，译文按原文框重排、字号自适应。引擎需自行安装（Python/uv）：uv tool install --python 3.12 --with "bitstring<5" BabelDOC</description>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="可执行文件路径（留空自动探测 ~/.local/bin/babeldoc.exe）" flex="1" />
+			<html:input id="zhinfo-pref-enginepath" type="text" style="min-width: 320px;" placeholder="留空自动探测" />
+		</hbox>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="原文语言" flex="1" />
+			<html:input id="zhinfo-pref-enginelangin" type="text" style="min-width: 100px;" placeholder="en" />
+		</hbox>
+		<checkbox id="zhinfo-pref-engineskipscanned" label="跳过扫描版检测（确定是文本型 PDF 时勾选，可提速）" />
+	</groupbox>
 	<groupbox id="zhinfo-group-pdf">
 		<label><html:h2>PDF 双语对照</html:h2></label>
 		<description class="zhinfo-prefs-description">阅读 PDF 时，点阅读器工具栏的「双语对照」按钮，即以重排文本方式逐段显示原文与中文译文；每段右上角的 × 可单独取消该段翻译，顶部可停止/清除/关闭。</description>

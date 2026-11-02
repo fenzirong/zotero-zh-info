@@ -20,6 +20,9 @@
 		pdfMode: 'extensions.zhinfo.pdfMode',
 		pdfPages: 'extensions.zhinfo.pdfPages',
 		pdfFollow: 'extensions.zhinfo.pdfFollow',
+		pdfEnginePath: 'extensions.zhinfo.pdfEnginePath',
+		engineLangIn: 'extensions.zhinfo.engineLangIn',
+		engineSkipScanned: 'extensions.zhinfo.engineSkipScanned',
 	};
 
 	let initialized = false;
@@ -188,6 +191,9 @@
 		bindCheck('zhinfo-pref-pdfauto', P.pdfAuto, false);
 		bindSelect('zhinfo-pref-pdfpages', P.pdfPages);
 		bindCheck('zhinfo-pref-pdffollow', P.pdfFollow, true);
+		bindText('zhinfo-pref-enginepath', P.pdfEnginePath);
+		bindText('zhinfo-pref-enginelangin', P.engineLangIn);
+		bindCheck('zhinfo-pref-engineskipscanned', P.engineSkipScanned, false);
 		bindNumber('zhinfo-pref-pdfmin', P.pdfMin, 20);
 		bindSelect('zhinfo-pref-pdfmode', P.pdfMode);
 

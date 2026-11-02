@@ -68,6 +68,9 @@ ZHInfo = {
 
 	async shutdown() {
 		try {
+			if (typeof ZHInfoEngine != 'undefined' && ZHInfoEngine) {
+				ZHInfoEngine.shutdown();
+			}
 			if (typeof ZHInfoBilingual != 'undefined' && ZHInfoBilingual) {
 				ZHInfoBilingual.shutdown();
 			}
@@ -228,6 +231,9 @@ ZHInfo = {
 			}
 			if (typeof ZHInfoBilingual != 'undefined' && ZHInfoBilingual) {
 				ZHInfoBilingual.init({ pluginID: this.id });
+			}
+			if (typeof ZHInfoEngine != 'undefined' && ZHInfoEngine) {
+				ZHInfoEngine.init();
 			}
 		}
 		catch (e) {
