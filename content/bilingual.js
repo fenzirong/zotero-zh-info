@@ -159,6 +159,7 @@ ZHInfoBilingual = {
 			state.startPage = this._currentPage(state) || 1;
 			state.limit = this._limitValue(state);
 			state.follow = this._pref('pdfFollow', true) !== false;
+			state.totalPages = this._pageCount(state) || 0;
 
 			if (!state.blocks) {
 				state.blocks = [];
@@ -580,19 +581,23 @@ ZHInfoBilingual = {
 
 				const page = this._nextPage(state);
 				if (page == null) {
-					if (!state.follow) break;
 					if (this._beyondLimit(state)) {
 						this._setStatus(state, '已到设定页数上限（' + this._limitLabel(state) + '）');
 						break;
 					}
-					await this._sleep(800);
-					continue;
+					// 当前没有待译页：直接结束，翻页时由 _watchView 重新触发，避免空转耗 CPU
+					break;
 				}
 
 				const todo = state.blocks.filter(b => b.page === page && b.status === 'idle');
 				for (let b of todo) {
 					if (state.aborted) break;
 					if (b.status !== 'idle') continue;
+					// 用户翻页了：立刻中断本页剩余段落，优先处理新页
+					if (this._currentPage(state) !== page) {
+						Zotero.debug('ZhInfo: 用户翻页，暂停第 ' + page + ' 页剩余段落');
+						break;
+					}
 					await this._translateBlock(state, b);
 					fails = (b.status === 'error') ? fails + 1 : 0;
 					if (fails >= 3) {
@@ -600,7 +605,7 @@ ZHInfoBilingual = {
 						state.aborted = true;
 						break;
 					}
-					await this._sleep(200);
+					await this._sleep(Number(this._pref('pdfDelayMs', 20)) || 0);
 				}
 			}
 		}
@@ -1459,22 +1464,32 @@ ZHInfoBilingual = {
 	},
 
 	_pageMax(state) {
-		return state.limit === Infinity ? 1e9 : (state.startPage + state.limit - 1);
+		return state.limit === Infinity ? (state.totalPages || 100000) : (state.startPage + state.limit - 1);
 	},
 
 	_beyondLimit(state) {
 		return this._currentPage(state) > this._pageMax(state);
 	},
 
-	/** 下一个要翻译的页：优先当前页与其后一页（预取），再按页序补齐 */
+	/** 下一个要翻译的页：优先当前页与其后一页（预取），再按"已知页"补齐。
+	 *  注意：绝不能按 startPage..maxPage 的数值区间遍历——limit 为 Infinity 时
+	 *  区间上限是 1e9，会直接把主线程跑死（这就是"非常卡/未响应"的元凶）。 */
 	_nextPage(state) {
-		const cur = this._currentPage(state);
+		const cur = this._currentPage(state) || 1;
 		const maxPage = this._pageMax(state);
+		const inRange = (p) => p >= 1 && p <= maxPage;
+		const idle = new Set();
+		for (let b of (state.blocks || [])) {
+			if (b.status === 'idle') idle.add(b.page);
+		}
+		if (!idle.size) return null;
 		const cands = [cur, cur + 1];
-		for (let p = state.startPage; p <= maxPage; p++) cands.push(p);
+		for (let p of idle) {
+			if (cands.indexOf(p) === -1) cands.push(p);
+		}
 		for (let p of cands) {
-			if (p < 1 || p > maxPage) continue;
-			if (!state.blocks.some(b => b.page === p && b.status === 'idle')) continue;
+			if (!inRange(p)) continue;
+			if (!idle.has(p)) continue;
 			return p;
 		}
 		return null;
