@@ -32,3 +32,5 @@ pref("extensions.zhinfo.pdf2zhService", "openai");
 pref("extensions.zhinfo.engineThread", 4);
 pref("extensions.zhinfo.engineLangIn", "en");
 pref("extensions.zhinfo.engineSkipScanned", false);
+pref("extensions.zhinfo.engineThinking", "auto");
+pref("extensions.zhinfo.engineThinkingResolved", "");

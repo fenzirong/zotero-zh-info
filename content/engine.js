@@ -110,8 +110,75 @@ ZHInfoEngine = {
 		return to > from ? (from + '-' + to) : String(from);
 	},
 
+	_thinkingKey() {
+		const cfg = this._llmConfig();
+		return cfg.base + '|' + cfg.model;
+	},
+
+	/**
+	 * 决定是否给引擎发 thinking 开关：
+	 * auto = 先按引擎的方式发一次极短请求；若正文为空（思考把预算吃满），
+	 * 再带 thinking:{type:disabled} 试探；能出正文则用 disabled，否则不发送。
+	 * 结果按 (baseURL|model) 缓存到 pdf2zh/engineThinkingResolved，避免每次都探。
+	 */
+	async resolveThinking() {
+		const mode = String(ZHInfo.pref('engineThinking', 'auto'));
+		if (mode === 'disabled' || mode === 'enabled' || mode === 'none') return mode;
+
+		const key = this._thinkingKey();
+		let cached = null;
+		try {
+			cached = JSON.parse(String(ZHInfo.pref('engineThinkingResolved', '') || 'null'));
+		}
+		catch (e) { cached = null; }
+		if (cached && cached.key === key && cached.value) return cached.value;
+
+		const cfg = this._llmConfig();
+		if (!cfg.base || !cfg.key) return 'none';
+		const url = cfg.base.replace(/\/+$/, '') + '/chat/completions';
+		const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.key };
+
+		const ask = async (extra) => {
+			const body = Object.assign({ model: cfg.model, max_tokens: 64, messages: [{ role: 'user', content: 'ping' }] }, extra);
+			try {
+				const xhr = await Zotero.HTTP.request('POST', url, {
+					body: JSON.stringify(body),
+					headers,
+					responseType: 'json',
+					timeout: 25000,
+					successCodes: false,
+				});
+				if (xhr.status < 200 || xhr.status >= 300) return null;
+				const j = xhr.response;
+				const msg = j && j.choices && j.choices[0] && j.choices[0].message;
+				return msg ? (msg.content || '') : null;
+			}
+			catch (e) {
+				return null;
+			}
+		};
+
+		let value = 'none';
+		const plain = await ask({});
+		if (plain !== null) {
+			if (plain && String(plain).trim()) {
+				value = 'none';
+			}
+			else {
+				const off = await ask({ thinking: { type: 'disabled' } });
+				if (off && String(off).trim()) value = 'disabled';
+			}
+		}
+		try {
+			Zotero.Prefs.set('extensions.zhinfo.engineThinkingResolved', JSON.stringify({ key, value, at: Date.now() }), true);
+		}
+		catch (e) { /* ignore */ }
+		Zotero.debug('ZhInfo: thinking resolved=' + value + ' for ' + key);
+		return value;
+	},
+
 	/** 返回 { args, environment } */
-	buildInvocation({ exe, engine, pdfPath, outDir, startPage, limit, caps }) {
+	buildInvocation({ exe, engine, pdfPath, outDir, startPage, limit, caps, thinking }) {
 		caps = caps || {};
 		const cfg = this._llmConfig();
 		const langIn = String(ZHInfo.pref('engineLangIn', 'en'));
@@ -152,6 +219,9 @@ ZHInfoEngine = {
 		args.push('--watermark-output-mode', 'no_watermark');
 		args.push('--output', outDir);
 		if (caps.qps) args.push('--qps', thread);
+		if ((thinking === 'disabled' || thinking === 'enabled') && caps.thinking) {
+			args.push('--openai-thinking', thinking);
+		}
 		if (ZHInfo.pref('engineSkipScanned', false)) args.push('--skip-scanned-detection');
 		return { args, environment, environmentAppend };
 	},
@@ -182,6 +252,7 @@ ZHInfoEngine = {
 			mode: /--mode/.test(text),
 			pages: /--pages/.test(text),
 			skipScanned: /--skip-scanned-detection/.test(text),
+			thinking: /--openai-thinking/.test(text),
 		};
 		this._helpCache.set(exe, c);
 		Zotero.debug('ZhInfo: engine caps ' + JSON.stringify(c));
@@ -333,6 +404,7 @@ ZHInfoEngine = {
 		job.outDir = outDir;
 
 		const caps = await this.caps(av.exe);
+		const thinking = await this.resolveThinking();
 		const inv = this.buildInvocation({
 			exe: av.exe,
 			engine: av.engine,
@@ -341,6 +413,7 @@ ZHInfoEngine = {
 			startPage: job.startPage,
 			limit: job.limit,
 			caps,
+			thinking,
 		});
 
 		const Subprocess = ChromeUtils.importESModule('resource://gre/modules/Subprocess.sys.mjs').Subprocess;
@@ -384,6 +457,10 @@ ZHInfoEngine = {
 		job.proc = null;
 
 		if (job.aborted) throw new Error('已取消');
+		if (/has no attribute 'strip'|NoneType/.test(tail)) {
+			throw new Error('模型没有返回正文：该模型把 token 全花在"思考"上，引擎拿不到译文。'
+				+ '请在设置 → PDF 引擎 →「引擎思考模式」选「关闭思考」（或换用非推理模型，如 deepseek-chat）后重试。');
+		}
 		if (exitCode !== 0) throw new Error('引擎退出码 ' + exitCode + '：' + tail.slice(-400));
 
 		const produced = await this._pickOutput(outDir, pdfPath);

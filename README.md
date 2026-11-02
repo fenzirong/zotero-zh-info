@@ -194,3 +194,17 @@ uv pip install --python "C:\Users\fzh\AppData\Roaming\uv\tools\pdf2zh\Scripts\py
 ### 设置面板（v2.1.5+ 改版）
 
 分组卡片式布局，带用途说明；「三、PDF 引擎」里有 **测试引擎** 按钮，点击后显示引擎类型、可执行路径、版本、该版本支持的开关与当前模型接口（约 5 秒，首次要起 Python 进程）。
+### 推理型模型（reasoning）必读（v2.1.7+）
+
+推理型模型（如商汤 `sensenova-*-flash-lite`、`deepseek-reasoner`、o1/o3 系列）会把 `max_tokens` 全部花在
+`reasoning_tokens` 上，返回的 `message.content` 是 **None**，BabelDOC 于是报
+`'NoneType' object has no attribute 'strip'`，最终拿不到译文。
+
+插件现在会自动处理：
+
+1. 先用引擎的请求形状发一次极短请求；若正文为空，再带 `thinking: {"type": "disabled"}` 试一次；
+2. 能出正文就把结果按 `(baseURL|model)` 缓存，并给引擎加 `--openai-thinking disabled`；
+3. 该结论写在 `engineThinkingResolved`，设置里「引擎思考模式」可选 `自动探测 / 关闭思考 / 开启思考 / 不发送`。
+
+实测（商汤 sensenova-6.8-flash-lite）：裸请求 `content=None`、`reasoning_tokens=2048`；
+加 `thinking:disabled` 后 `content` 正常、产出双语 PDF 且页面内检出中文。

@@ -24,6 +24,7 @@
 		pdfEnginePath: 'extensions.zhinfo.pdfEnginePath',
 		pdf2zhService: 'extensions.zhinfo.pdf2zhService',
 		engineThread: 'extensions.zhinfo.engineThread',
+		engineThinking: 'extensions.zhinfo.engineThinking',
 		engineLangIn: 'extensions.zhinfo.engineLangIn',
 		engineSkipScanned: 'extensions.zhinfo.engineSkipScanned',
 	};
@@ -210,6 +211,7 @@
 		bindText('zhinfo-pref-enginepath', P.pdfEnginePath);
 		bindText('zhinfo-pref-pdf2zhservice', P.pdf2zhService);
 		bindNumber('zhinfo-pref-enginethread', P.engineThread, 4);
+		bindSelect('zhinfo-pref-enginethinking', P.engineThinking);
 		bindText('zhinfo-pref-enginelangin', P.engineLangIn);
 		bindCheck('zhinfo-pref-engineskipscanned', P.engineSkipScanned, false);
 		bindNumber('zhinfo-pref-pdfmin', P.pdfMin, 20);
