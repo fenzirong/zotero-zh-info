@@ -20,7 +20,10 @@
 		pdfMode: 'extensions.zhinfo.pdfMode',
 		pdfPages: 'extensions.zhinfo.pdfPages',
 		pdfFollow: 'extensions.zhinfo.pdfFollow',
+		pdfEngine: 'extensions.zhinfo.pdfEngine',
 		pdfEnginePath: 'extensions.zhinfo.pdfEnginePath',
+		pdf2zhService: 'extensions.zhinfo.pdf2zhService',
+		engineThread: 'extensions.zhinfo.engineThread',
 		engineLangIn: 'extensions.zhinfo.engineLangIn',
 		engineSkipScanned: 'extensions.zhinfo.engineSkipScanned',
 	};
@@ -191,7 +194,10 @@
 		bindCheck('zhinfo-pref-pdfauto', P.pdfAuto, false);
 		bindSelect('zhinfo-pref-pdfpages', P.pdfPages);
 		bindCheck('zhinfo-pref-pdffollow', P.pdfFollow, true);
+		bindSelect('zhinfo-pref-engine', P.pdfEngine);
 		bindText('zhinfo-pref-enginepath', P.pdfEnginePath);
+		bindText('zhinfo-pref-pdf2zhservice', P.pdf2zhService);
+		bindNumber('zhinfo-pref-enginethread', P.engineThread, 4);
 		bindText('zhinfo-pref-enginelangin', P.engineLangIn);
 		bindCheck('zhinfo-pref-engineskipscanned', P.engineSkipScanned, false);
 		bindNumber('zhinfo-pref-pdfmin', P.pdfMin, 20);

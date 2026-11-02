@@ -267,6 +267,20 @@ ZHInfo = {
 						const items = (context && context.items) || [];
 						this.batchTranslate(items);
 					},
+				}, {
+					menuType: 'menuitem',
+					l10nID: 'zhinfo-menu-engine',
+					onShowing: (event, context) => {
+						try {
+							const items = (context && context.items) || [];
+							context.setVisible(items.some(it => it && (it.isAttachment && (it.isPDFAttachment && it.isPDFAttachment()))));
+						}
+						catch (e) { /* ignore */ }
+					},
+					onCommand: (event, context) => {
+						const items = (context && context.items) || [];
+						this.engineForItems(items);
+					},
 				}],
 			});
 			Zotero.debug('ZhInfo: menu registered as ' + this._menuID);
@@ -759,6 +773,42 @@ ZHInfo = {
 	},
 
 	// ------------------------------------------------------------ batch
+
+	/** 右键「用引擎生成双语 PDF」：按所选条目找 PDF 附件，进后台队列 */
+	async engineForItems(items) {
+		let queued = 0;
+		for (let it of (items || [])) {
+			try {
+				let att = null;
+				if (it && it.isAttachment && it.isAttachment() && it.isPDFAttachment()) {
+					att = it;
+				}
+				else if (it && it.isRegularItem && it.isRegularItem()) {
+					for (let id of it.getAttachments()) {
+						const ai = Zotero.Items.get(id);
+						if (ai && ai.isPDFAttachment()) { att = ai; break; }
+					}
+				}
+				if (!att) continue;
+				ZHInfoEngine.enqueue({ attachment: att, startPage: 1, limit: Infinity });
+				queued++;
+			}
+			catch (e) {
+				Zotero.logError(e);
+			}
+		}
+		Zotero.debug('ZhInfo: engine queued ' + queued + ' / 队列 ' + ZHInfoEngine.queueLength());
+		if (queued) {
+			try {
+				const pw = new Zotero.ProgressWindow({ closeOnClick: true });
+				pw.changeHeadline('已加入后台翻译队列');
+				pw.addDescription(queued + ' 篇，完成后会弹出通知');
+				pw.show();
+				pw.startCloseTimer(6000);
+			}
+			catch (e) { /* ignore */ }
+		}
+	},
 
 	async batchTranslate(items) {
 		const list = (items || []).filter(it => it && it.isRegularItem && it.isRegularItem());

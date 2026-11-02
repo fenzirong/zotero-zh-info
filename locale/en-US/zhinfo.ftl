@@ -9,3 +9,6 @@ zhinfo-button-translate-all =
 
 zhinfo-menu-batch =
     .label = Translate Title & Abstract into Chinese
+
+zhinfo-menu-engine =
+    .label = Generate bilingual PDF with engine

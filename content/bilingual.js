@@ -823,6 +823,17 @@ ZHInfoBilingual = {
 	},
 
 	/** 该块下方到下一块之间的空白（PDF 点），可用作译文的额外高度 */
+	/** 该页行高中位数（PDF 点），作为译文字号基准，避免逐块抖动 */
+	_pageMedianH(state, pageNo) {
+		const hs = [];
+		for (let b of (state.blocks || [])) {
+			if (b.page === pageNo && b.avgH) hs.push(b.avgH);
+		}
+		if (!hs.length) return 0;
+		hs.sort((a, b) => a - b);
+		return hs[Math.floor(hs.length / 2)];
+	},
+
 	_gapBelow(state, b) {
 		let best = null;
 		for (let o of state.blocks) {
@@ -857,7 +868,9 @@ ZHInfoBilingual = {
 		const width = Math.max(16, widthPt * scale + 3);
 		const ownH = Math.max(9, heightPt * scale);
 		const availH = ownH + Math.max(0, gapPt * scale);
-		const baseFs = Math.max(5, Math.min(42, (b.avgH || 10) * 1.02 * scale));
+		const medH = this._pageMedianH(state, b.page);
+		const refH = Math.min(b.avgH || medH || 10, (medH || 10) * 1.35);
+		const baseFs = Math.max(5, Math.min(42, (refH || 10) * 1.02 * scale));
 
 		const el = doc.createElement('div');
 		el.className = 'zhb-inline';
@@ -906,7 +919,7 @@ ZHInfoBilingual = {
 			const win = el.ownerDocument.defaultView;
 			const avail = el._availH;
 			const base = el._baseFs;
-			const floor = Math.max(4, base * 0.62);
+			const floor = Math.max(4.5, base * 0.72);
 
 			txt.style.display = 'block';
 			txt.style.webkitLineClamp = '';
@@ -1466,7 +1479,7 @@ ZHInfoBilingual = {
 					+ ' padding: 1px 2px 1px 4px; box-sizing: border-box; border-radius: 2px; line-height: 1.24;'
 					+ ' border-left: 2px solid rgba(47,111,235,.45);'
 					+ ' font-family: system-ui, -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif; }',
-				'.zhb-inline-text { display: block; overflow: hidden; }',
+				'.zhb-inline-text { display: block; overflow: hidden; text-align: justify; word-break: break-word; }',
 				'.zhb-inline-x { position: absolute; top: -8px; right: -8px; width: 15px; height: 15px; padding: 0;'
 					+ ' line-height: 13px; font-size: 11px; border-radius: 50%; cursor: pointer; opacity: 0;'
 					+ ' border: 1px solid rgba(120,120,120,.85); background: #fff; color: #444; }',

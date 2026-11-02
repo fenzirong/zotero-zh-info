@@ -9,3 +9,6 @@ zhinfo-button-translate-all =
 
 zhinfo-menu-batch =
     .label = 批量翻译中文标题与摘要
+
+zhinfo-menu-engine =
+    .label = 用引擎生成双语 PDF（后台队列）

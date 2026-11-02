@@ -155,3 +155,20 @@ pdf.js 的文字层是绝对定位的，同一区域塞两份文字必然重叠�
 
 实现要点：文本与坐标取自 pdf.js 文本层（旋转水印、页边碎片、页码、running head 会被过滤；先按中部空白带切双栏、再逐栏分行切段；
 按行距/缩进/字号变化分段）。译文按「附件+服务+语言+原文」缓存，连续失败 3 次自动暂停。扫描版（无文本层）PDF 不可用。
+### 引擎可选：BabelDOC 或 pdf2zh（v2.1+）
+
+设置 → PDF 引擎 → 「引擎」可选 `自动（优先 BabelDOC）` / `BabelDOC` / `PDFMathTranslate（pdf2zh）`，
+并在「可执行文件路径」留空自动探测 `~/.local/bin/`。
+
+两条引擎的参数差异由插件适配（参数取自各自源码）：
+
+| 引擎 | 关键参数 | 凭据传递 |
+|---|---|---|
+| BabelDOC | `--files --pages --lang-in --lang-out --openai-model --openai-base-url --openai-api-key --watermark-output-mode no_watermark --output --qps` | 命令行参数 |
+| pdf2zh | `＜文件＞ -p -li -lo -s 服务:模型 -o -t`（语言码用 `zh`） | 环境变量 `OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL` |
+
+### 后台队列 + 完成通知（v2.1+）
+
+- 阅读器浮条点「生成双语PDF」→ 任务进后台串行队列，浮条会实时显示进度；「取消引擎」可中止当前或排队任务。
+- 也可在文献列表**右键 →「用引擎生成双语 PDF（后台队列）」**，对多个条目批量排队（自动取各自的 PDF 附件）。
+- 每个任务完成/失败都会弹 Zotero 通知；生成的 `*-dual.pdf` 自动作为子附件挂上并打 `zhinfo-translated` 标签。

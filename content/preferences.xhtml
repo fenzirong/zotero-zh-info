@@ -81,6 +81,21 @@
 		<label><html:h2>PDF 引擎（真正保留原版面）</html:h2></label>
 		<description class="zhinfo-prefs-description">在阅读器浮条点「生成双语PDF」时，调用开源引擎 BabelDOC（沉浸式翻译官方开源后端）/ PDFMathTranslate 生成新的双语 PDF：图表公式不动，译文按原文框重排、字号自适应。引擎需自行安装（Python/uv）：uv tool install --python 3.12 --with "bitstring<5" BabelDOC</description>
 		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="引擎" flex="1" />
+			<html:select id="zhinfo-pref-engine" style="min-width: 270px;">
+				<html:option value="auto">自动（优先 BabelDOC）</html:option>
+				<html:option value="babeldoc">BabelDOC（推荐）</html:option>
+				<html:option value="pdf2zh">PDFMathTranslate（pdf2zh）</html:option>
+			</html:select>
+		</hbox>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="pdf2zh 翻译服务名（OpenAI / DeepSeek / Silicon 等）" flex="1" />
+			<html:input id="zhinfo-pref-pdf2zhservice" type="text" style="min-width: 200px;" placeholder="OpenAI" />
+		</hbox>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="并发线程数" flex="1" />
+			<html:input id="zhinfo-pref-enginethread" type="text" style="min-width: 100px;" placeholder="4" />
+		</hbox>		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="可执行文件路径（留空自动探测 ~/.local/bin/babeldoc.exe）" flex="1" />
 			<html:input id="zhinfo-pref-enginepath" type="text" style="min-width: 320px;" placeholder="留空自动探测" />
 		</hbox>
