@@ -25,6 +25,7 @@
 		pdf2zhService: 'extensions.zhinfo.pdf2zhService',
 		engineThread: 'extensions.zhinfo.engineThread',
 		engineThinking: 'extensions.zhinfo.engineThinking',
+		updateAuto: 'extensions.zhinfo.updateAuto',
 		engineLangIn: 'extensions.zhinfo.engineLangIn',
 		engineSkipScanned: 'extensions.zhinfo.engineSkipScanned',
 	};
@@ -111,6 +112,66 @@
 		el.addEventListener('click', () => {
 			setTimeout(() => setBool(pref, el.checked), 0);
 		});
+	}
+
+	function setUpdateStatus(text, kind) {
+		const el = q('zhinfo-update-status');
+		if (!el) return;
+		el.textContent = text;
+		el.dataset.kind = kind || '';
+	}
+
+	function initUpdateUI() {
+		const U = Zotero.ZhInfoUpdate;
+		const cur = q('zhinfo-update-current');
+		if (cur) cur.textContent = U ? U.version : '未知';
+
+		let lastResult = null;
+
+		const btnCheck = q('zhinfo-btn-update-check');
+		const onCheck = async () => {
+			setUpdateStatus('正在检查更新…', 'busy');
+			try {
+				const u = Zotero.ZhInfoUpdate;
+				if (!u) throw new Error('更新模块未加载，请重启 Zotero');
+				const r = await u.check();
+				lastResult = r;
+				if (r.available) setUpdateStatus('发现新版本 ' + r.version + '（当前 ' + r.current + '）', 'ok');
+				else setUpdateStatus('已是最新版本 ' + r.current, 'ok');
+			}
+			catch (e) {
+				Zotero.logError(e);
+				setUpdateStatus('检查失败：' + (e && e.message ? e.message : e), 'error');
+			}
+		};
+
+		const btnInstall = q('zhinfo-btn-update-install');
+		const onInstall = async () => {
+			try {
+				const u = Zotero.ZhInfoUpdate;
+				if (!u) throw new Error('更新模块未加载，请重启 Zotero');
+				if (!lastResult || !lastResult.available) {
+					setUpdateStatus('请先点「检查更新」', 'error');
+					return;
+				}
+				setUpdateStatus('正在下载 ' + lastResult.version + '…', 'busy');
+				await u.install(lastResult.link, lastResult.version);
+				setUpdateStatus('已下载并安装，请重启 Zotero 生效', 'ok');
+			}
+			catch (e) {
+				Zotero.logError(e);
+				setUpdateStatus('安装失败：' + (e && e.message ? e.message : e), 'error');
+			}
+		};
+
+		if (btnCheck) {
+			btnCheck.addEventListener('command', onCheck);
+			btnCheck.addEventListener('click', onCheck);
+		}
+		if (btnInstall) {
+			btnInstall.addEventListener('command', onInstall);
+			btnInstall.addEventListener('click', onInstall);
+		}
 	}
 
 	function updateVisibility() {
@@ -214,6 +275,8 @@
 		bindText('zhinfo-pref-pdf2zhservice', P.pdf2zhService);
 		bindNumber('zhinfo-pref-enginethread', P.engineThread, 4);
 		bindSelect('zhinfo-pref-enginethinking', P.engineThinking);
+		bindCheck('zhinfo-pref-updateauto', P.updateAuto, true);
+		initUpdateUI();
 		bindText('zhinfo-pref-enginelangin', P.engineLangIn);
 		bindCheck('zhinfo-pref-engineskipscanned', P.engineSkipScanned, false);
 		bindNumber('zhinfo-pref-pdfmin', P.pdfMin, 20);

@@ -48,6 +48,10 @@ ZHInfo = {
 		if (typeof ZHInfoTranslate != 'undefined') {
 			Zotero.ZhInfoTranslate = ZHInfoTranslate;
 		}
+		if (typeof ZHInfoUpdate != 'undefined') {
+			ZHInfoUpdate.init({ id: this.id, version: this.version, rootURI: this.rootURI });
+			Zotero.ZhInfoUpdate = ZHInfoUpdate;
+		}
 	},
 
 	async startup() {
@@ -235,6 +239,13 @@ ZHInfo = {
 			if (typeof ZHInfoEngine != 'undefined' && ZHInfoEngine) {
 				ZHInfoEngine.init();
 				Zotero.ZhInfoEngine = ZHInfoEngine;
+			}
+			if (typeof ZHInfoUpdate != 'undefined' && ZHInfoUpdate) {
+				ZHInfoUpdate.init({ id: this.id, version: this.version, rootURI: this.rootURI });
+				Zotero.ZhInfoUpdate = ZHInfoUpdate;
+				setTimeout(() => {
+					ZHInfoUpdate.autoCheck();
+				}, 12000);
 			}
 		}
 		catch (e) {

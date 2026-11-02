@@ -154,6 +154,18 @@
 		</hbox>
 	</groupbox>
 
+	<groupbox class="zhinfo-prefs-group" id="zhinfo-group-update">
+		<caption label="六、更新" />
+		<description class="zhinfo-prefs-hint">插件自带更新检查（不依赖 Zotero 的静默更新）。发现新版本后可一键下载安装，重启 Zotero 生效。</description>
+		<hbox align="center" class="zhinfo-prefs-row">
+			<label value="当前版本" />
+			<description id="zhinfo-update-current" class="zhinfo-prefs-version" />
+			<button id="zhinfo-btn-update-check" label="检查更新" />
+			<button id="zhinfo-btn-update-install" label="下载并安装" />
+		</hbox>
+		<checkbox id="zhinfo-pref-updateauto" label="启动时自动检查更新（每天最多一次）" />
+		<description id="zhinfo-update-status" class="zhinfo-prefs-status" />
+	</groupbox>
 	<groupbox class="zhinfo-prefs-group">
 		<caption label="五、测试与批量" />
 		<hbox class="zhinfo-prefs-row">

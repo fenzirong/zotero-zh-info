@@ -34,3 +34,7 @@ pref("extensions.zhinfo.engineLangIn", "en");
 pref("extensions.zhinfo.engineSkipScanned", false);
 pref("extensions.zhinfo.engineThinking", "auto");
 pref("extensions.zhinfo.engineThinkingResolved", "");
+pref("extensions.zhinfo.updateAuto", true);
+pref("extensions.zhinfo.updateLastCheck", 0);
+pref("extensions.zhinfo.updateAvailable", "");
+pref("extensions.zhinfo.updateUrl", "");

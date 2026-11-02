@@ -219,3 +219,13 @@ Zotero 的设置窗口本身是 **XUL 文档**。若用 XHTML 写法（`<input>`
 - 控件用原生 XUL：`groupbox/caption`、`checkbox`、`menulist+menupopup+menuitem`、`textbox`、`button`、`description`、`hbox/vbox`
 - 事件用 `command`（XUL），不是 `click`
 - 不要给 `groupbox` 写 `display`，否则 `hidden` 属性失效（分组过滤会失灵）
+### 自动更新（v2.1.9+，插件自带）
+
+Zotero 自身的插件更新依赖 Firefox 的静默定时器，实践中常常不触发（`updateURL` 已正确写入 `extensions.json`、
+清单与 XPI 均可下载，但用户端始终收不到提示）。因此插件自己做了一套：
+
+- 启动 12 秒后静默检查一次（每 24h 最多一次，可在设置里关）；
+- 发现新版本 → 弹通知；
+- 设置 → 中文标题与摘要 → **六、更新** 里可看当前版本、点「检查更新」「下载并安装」；
+- 安装走 `XPIInstall.getInstallForFile()`，装完提示重启 Zotero 生效；
+- 更新清单就是仓库根目录的 `updates.json`（`applications.zotero.strict_min_version/strict_max_version` 会参与筛选）。
