@@ -287,7 +287,7 @@ ZHInfoEngine = {
 
 	// ------------------------------------------------------------ 执行
 
-	async _exec(job) {
+	async _execInner(job) {
 		const attachment = job.attachment;
 		const av = await this.available();
 		if (!av.ok) {
@@ -303,6 +303,7 @@ ZHInfoEngine = {
 
 		const outDir = PathUtils.join(Zotero.getTempDirectory().path, 'zhinfo-' + attachment.id + '-' + Date.now());
 		await IOUtils.makeDirectory(outDir, { createAncestors: true });
+		job.outDir = outDir;
 
 		const caps = await this.caps(av.exe);
 		const inv = this.buildInvocation({
@@ -366,6 +367,25 @@ ZHInfoEngine = {
 			this._notify('双语 PDF 已生成', Zotero.Items.get(attachment.id).getField('title') || '');
 		}
 		return { attachment: created, file: produced };
+	},
+
+	/** 执行任务并保证清掉中间产物目录（PDF 已复制进 storage，原样保留在 job 里只用于排错日志） */
+	async _exec(job) {
+		try {
+			return await this._execInner(job);
+		}
+		finally {
+			if (job.outDir) {
+				try {
+					await IOUtils.remove(job.outDir, { recursive: true, ignoreAbsent: true });
+					Zotero.debug('ZhInfo: engine temp cleaned ' + job.outDir);
+				}
+				catch (e) {
+					Zotero.logError(e);
+				}
+				job.outDir = null;
+			}
+		}
 	},
 
 	async _pickOutput(outDir, inputPath) {

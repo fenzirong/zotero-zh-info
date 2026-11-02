@@ -184,3 +184,5 @@ uv pip install --python "C:\Users\fzh\AppData\Roaming\uv\tools\pdf2zh\Scripts\py
 - 服务名必须**小写**（`openai` / `deepseek` / `silicon` / `zhipu` / `openailiked` …），插件默认 `openai` 并自动补 `:模型名`；
   走 OpenAI 兼容端点时用环境变量传凭据（插件已自动设置 `OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL`）。
 - 插件运行时会 pdf2zh --help **探测该版本支持哪些开关**（如 `--ultrafast`、`--qps`、`--pages`），只传存在的，避免版本差异报错。
+
+> v2.1.2 起：引擎跑完（无论成功或失败）都会自动删除 Zotero 临时目录里的中间产物，不再残留 `zhinfo-*` 目录。

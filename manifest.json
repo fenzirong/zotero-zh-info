@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Zotero 中文标题与摘要",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "在条目信息界面加入「中文标题」与「中文摘要」两个字段，并自动翻译填入（支持 MyMemory / 大模型 / DeepL / Google）。",
   "author": "fzh",
   "icons": {
