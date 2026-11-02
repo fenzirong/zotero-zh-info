@@ -161,8 +161,10 @@ ZHInfoBilingual = {
 			state.follow = this._pref('pdfFollow', true) !== false;
 
 			if (!state.blocks) {
-				this._setStatus(state, '正在提取文本…');
-				state.blocks = await this.extract(reader, 'all');
+				state.blocks = [];
+				state.extractedPages = new Set();
+				this._setStatus(state, '正在提取当前页文本…');
+				await this.extractPage(state, Math.max(1, state.startPage || 1));
 				if (!state.blocks.length) {
 					this._setStatus(state, '未能提取到文本（可能是扫描版 PDF）');
 					state.active = false;
@@ -211,27 +213,60 @@ ZHInfoBilingual = {
 		return await this._extractFromWorker(reader, scope);
 	},
 
-	async _extractFromPdfJs(app, scope) {
+	/** 懒加载：只抽取指定页，结果并入 state.blocks 并去重 */
+	async extractPage(state, pageNo) {
+		if (!state.extractedPages) state.extractedPages = new Set();
+		if (state.extractedPages.has(pageNo)) return;
+		state.extractedPages.add(pageNo);
+		let blocks = [];
+		try {
+			const app = this._viewerApp(state);
+			if (app && app.pdfDocument) {
+				blocks = await this._extractFromPdfJs(app, 'page', pageNo);
+			}
+			if (!blocks.length && state.reader) {
+				blocks = await this._extractFromWorker(state.reader, 'page', pageNo);
+			}
+		}
+		catch (e) {
+			Zotero.logError(e);
+		}
+		if (!blocks.length) return;
+		if (!state.blocks) state.blocks = [];
+		for (let b of blocks) {
+			b.idx = state.blocks.length;
+			b.page = pageNo;
+			state.blocks.push(b);
+		}
+		Zotero.debug('ZhInfo: 抽取第 ' + pageNo + ' 页，段落 ' + blocks.length + '（累计 ' + state.blocks.length + '）');
+	},
+
+	async _extractFromPdfJs(app, scope, pageNoOverride) {
 		const total = app.pagesCount || (app.pdfDocument && app.pdfDocument.numPages) || 0;
 		if (!total) return [];
 		let pages;
 		if (scope === 'page') {
-			let curPage = 1;
-			try {
-				curPage = app.page || (app.pdfViewer && app.pdfViewer.currentPageNumber) || 1;
+			let curPage = pageNoOverride || 1;
+			if (!pageNoOverride) {
+				try {
+					curPage = app.page || (app.pdfViewer && app.pdfViewer.currentPageNumber) || 1;
+				}
+				catch (e) { /* ignore */ }
 			}
-			catch (e) { /* ignore */ }
 			pages = [Math.max(1, Math.min(total, curPage))];
 		}
 		else {
+			// 兜底上限，避免超大文档一次性抽取把 UI 卡死
+			const cap = Math.min(total, Number(this._pref('pdfMaxPages', 120)) || 120);
 			pages = [];
-			for (let i = 1; i <= total; i++) pages.push(i);
+			for (let i = 1; i <= cap; i++) pages.push(i);
 		}
 
 		const minChars = Number(this._pref('pdfMinChars', 20)) || 20;
 		let all = [];
 		let idx = 0;
 		for (let pageNo of pages) {
+			await new Promise(r => setTimeout(r, 0));
 			let page;
 			try {
 				page = await app.pdfDocument.getPage(pageNo);
@@ -297,11 +332,12 @@ ZHInfoBilingual = {
 		return all;
 	},
 
-	async _extractFromWorker(reader, scope) {
+	async _extractFromWorker(reader, scope, pageNoOverride) {
 		const minChars = Number(this._pref('pdfMinChars', 20)) || 20;
 		let text = '';
 		try {
-			const full = await Zotero.PDFWorker.getFullText(reader.itemID, scope === 'page' ? 1 : null, true);
+			const maxPages = scope === 'page' ? (pageNoOverride || 1) : null;
+			const full = await Zotero.PDFWorker.getFullText(reader.itemID, maxPages, true);
 			text = (full && full.text) || '';
 		}
 		catch (e) {
@@ -315,9 +351,9 @@ ZHInfoBilingual = {
 		for (let pi = 0; pi < pages.length; pi++) {
 			const paras = this._linesToParagraphs(String(pages[pi] || '').split('\n'));
 			for (let p of paras) {
-				if (p.length >= minChars) {
-					out.push({ idx: idx++, page: pi + 1, src: p, rect: null, lines: 0, avgH: 0, dst: '', status: 'idle', err: '' });
-				}
+				if (p.length < minChars) continue;
+				if (pageNoOverride && (pi + 1) !== pageNoOverride) continue;
+				out.push({ idx: idx++, page: pi + 1, src: p, rect: null, lines: 0, avgH: 0, dst: '', status: 'idle', err: '' });
 			}
 		}
 		return out;
@@ -534,6 +570,14 @@ ZHInfoBilingual = {
 		let fails = 0;
 		try {
 			while (!state.aborted) {
+				const curPage = this._currentPage(state) || 1;
+				if (curPage <= this._pageMax(state)
+					&& !(state.extractedPages && state.extractedPages.has(curPage))) {
+					this._setStatus(state, '正在提取第 ' + curPage + ' 页…');
+					await this.extractPage(state, curPage);
+					continue;
+				}
+
 				const page = this._nextPage(state);
 				if (page == null) {
 					if (!state.follow) break;
@@ -738,7 +782,7 @@ ZHInfoBilingual = {
 					state.lastPageNo = p;
 					this._updateHeader(state);
 				}
-				if (state.follow && !state.aborted && !state.running && this._nextPage(state) != null) {
+				if (state.follow && !state.aborted && !state.running && (pageChanged || this._nextPage(state) != null)) {
 					this.run(state);
 				}
 			}
