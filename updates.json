@@ -3,8 +3,8 @@
     "zhinfo@zotero.local": {
       "updates": [
         {
-          "version": "1.5.0",
-          "update_link": "https://github.com/fenzirong/zotero-zh-info/releases/download/v1.5.0/zhinfo-1.5.0.xpi",
+          "version": "1.5.1",
+          "update_link": "https://github.com/fenzirong/zotero-zh-info/releases/download/v1.5.1/zhinfo-1.5.1.xpi",
           "applications": {
             "zotero": {
               "strict_min_version": "7.0",

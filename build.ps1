@@ -7,6 +7,12 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $out = Join-Path $root ("zhinfo-{0}.xpi" -f $Version)
 
+$manifestVersion = (Get-Content -LiteralPath (Join-Path $root 'manifest.json') -Raw | ConvertFrom-Json).version
+if ($manifestVersion -ne $Version) {
+	Write-Error ("版本不一致：manifest.json 是 $manifestVersion，打包参数是 $Version。请先统一版本号。")
+	exit 1
+}
+
 if (Test-Path -LiteralPath $out) { Remove-Item -LiteralPath $out -Force }
 
 $include = @('.json', '.js', '.css', '.xhtml', '.ftl', '.svg', '.png')
