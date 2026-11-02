@@ -124,6 +124,17 @@
 			if (!box) continue;
 			box.hidden = key !== provider;
 		}
+		const engineEl = q('zhinfo-pref-engine');
+		const engine = engineEl ? engineEl.value : getStr(P.pdfEngine, 'auto');
+		const svcRow = q('zhinfo-row-pdf2zhservice');
+		if (svcRow) svcRow.hidden = !(engine === 'pdf2zh' || engine === 'auto');
+	}
+
+	function setEngineStatus(text, kind) {
+		const el = q('zhinfo-engine-status');
+		if (!el) return;
+		el.textContent = text;
+		el.dataset.kind = kind || '';
 	}
 
 	function setResult(text, kind) {
@@ -206,7 +217,24 @@
 
 		const testBtn = q('zhinfo-btn-test');
 		if (testBtn) testBtn.addEventListener('click', onTest);
-		const batchBtn = q('zhinfo-btn-batch');
+		const engineBtn = q('zhinfo-btn-engine');
+	if (engineBtn) {
+		engineBtn.addEventListener('click', async () => {
+			setEngineStatus('正在检测引擎…', 'busy');
+			try {
+				const E = Zotero.ZhInfoEngine || (typeof ZHInfoEngine != 'undefined' ? ZHInfoEngine : null);
+				if (!E) throw new Error('引擎模块未加载，请重启 Zotero');
+				const info = await E.describe();
+				setEngineStatus(info.text, info.ok ? 'ok' : 'error');
+			}
+			catch (e) {
+				Zotero.logError(e);
+				setEngineStatus('检测失败：' + (e && e.message ? e.message : e), 'error');
+			}
+		});
+	}
+
+	const batchBtn = q('zhinfo-btn-batch');
 		if (batchBtn) batchBtn.addEventListener('click', onBatch);
 
 		updateVisibility();

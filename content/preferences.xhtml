@@ -1,13 +1,15 @@
 <div id="zhinfo-prefs-pane">
+	<p class="zhinfo-prefs-lead">把英文文献的<b>中文标题</b>与<b>中文摘要</b>写进条目信息面板，并可对 PDF 生成<b>保留原版面</b>的双语版本。配置保存在本机，可随 Zotero 同步。</p>
+
 	<section class="zhinfo-prefs-group">
-		<h2>中文标题与摘要</h2>
-		<p class="zhinfo-prefs-description">在条目信息面板新增「中文标题」「中文摘要」两个分区，条目打开时可自动翻译并填入。译文保存在条目的「其他（Extra）」字段中，可随 Zotero 同步。</p>
+		<h2>一、条目信息面板</h2>
+		<p class="zhinfo-prefs-hint">在条目右侧信息面板新增「中文标题」「中文摘要」两个分区；译文写入条目的「其他（Extra）」字段。</p>
 		<label class="zhinfo-prefs-check"><input type="checkbox" id="zhinfo-pref-auto" /> 打开条目时自动翻译并填入缺失的中文标题 / 中文摘要</label>
 		<label class="zhinfo-prefs-check"><input type="checkbox" id="zhinfo-pref-skipzh" /> 原文已是中文时跳过翻译</label>
 	</section>
 
 	<section class="zhinfo-prefs-group">
-		<h2>翻译服务</h2>
+		<h2>二、翻译服务</h2>
 		<div class="zhinfo-prefs-row">
 			<label for="zhinfo-pref-provider">服务</label>
 			<select id="zhinfo-pref-provider">
@@ -16,6 +18,7 @@
 				<option value="deepl">DeepL API（需 API Key）</option>
 				<option value="google">Google 翻译（免费接口，国内通常需代理）</option>
 			</select>
+			<em class="zhinfo-prefs-note">下方只显示当前服务的设置</em>
 		</div>
 		<div class="zhinfo-prefs-row">
 			<label for="zhinfo-pref-targetlang">目标语言</label>
@@ -28,22 +31,22 @@
 
 	<section class="zhinfo-prefs-group" id="zhinfo-group-llm">
 		<h2>大模型 API（OpenAI 兼容）</h2>
-		<p class="zhinfo-prefs-description">支持 DeepSeek、硅基流动、Moonshot、OpenAI、Ollama 等任何兼容 /chat/completions 的服务。Base URL 例：https://api.deepseek.com</p>
+		<p class="zhinfo-prefs-hint">支持 DeepSeek、硅基流动、Moonshot、OpenAI、Ollama 等任何兼容 /chat/completions 的服务。PDF 引擎也复用这里的配置。</p>
 		<div class="zhinfo-prefs-row">
 			<label for="zhinfo-pref-llm-base">Base URL</label>
-			<input type="text" id="zhinfo-pref-llm-base" placeholder="https://api.deepseek.com" />
+			<input type="text" id="zhinfo-pref-llm-base" placeholder="https://api.deepseek.com" spellcheck="false" />
 		</div>
 		<div class="zhinfo-prefs-row">
 			<label for="zhinfo-pref-llm-key">API Key</label>
-			<input type="password" id="zhinfo-pref-llm-key" placeholder="sk-..." />
+			<input type="password" id="zhinfo-pref-llm-key" placeholder="sk-..." spellcheck="false" />
 		</div>
 		<div class="zhinfo-prefs-row">
 			<label for="zhinfo-pref-llm-model">模型名称</label>
-			<input type="text" id="zhinfo-pref-llm-model" placeholder="deepseek-chat" />
+			<input type="text" id="zhinfo-pref-llm-model" placeholder="deepseek-chat" spellcheck="false" />
 		</div>
 		<div class="zhinfo-prefs-row">
-			<label for="zhinfo-pref-llm-extra">额外要求（可选）</label>
-			<input type="text" id="zhinfo-pref-llm-extra" placeholder="例：保留专业术语的英文原词" />
+			<label for="zhinfo-pref-llm-extra">额外要求</label>
+			<input type="text" id="zhinfo-pref-llm-extra" placeholder="可选，例：保留专业术语的英文原词" />
 		</div>
 	</section>
 
@@ -51,31 +54,31 @@
 		<h2>DeepL API</h2>
 		<div class="zhinfo-prefs-row">
 			<label for="zhinfo-pref-deepl-key">API Key</label>
-			<input type="password" id="zhinfo-pref-deepl-key" />
+			<input type="password" id="zhinfo-pref-deepl-key" spellcheck="false" />
 		</div>
-		<label class="zhinfo-prefs-check"><input type="checkbox" id="zhinfo-pref-deepl-free" /> 使用 DeepL 免费版端点（api-free.deepl.com）</label>
+		<label class="zhinfo-prefs-check"><input type="checkbox" id="zhinfo-pref-deepl-free" /> 使用免费版端点（api-free.deepl.com）</label>
 	</section>
 
 	<section class="zhinfo-prefs-group" id="zhinfo-group-mymemory">
 		<h2>MyMemory</h2>
 		<div class="zhinfo-prefs-row">
-			<label for="zhinfo-pref-mm-email">联系邮箱（可选，提高限额）</label>
-			<input type="text" id="zhinfo-pref-mm-email" />
+			<label for="zhinfo-pref-mm-email">联系邮箱</label>
+			<input type="text" id="zhinfo-pref-mm-email" placeholder="可选，填写可提高每日限额" spellcheck="false" />
 		</div>
 		<div class="zhinfo-prefs-row">
 			<label for="zhinfo-pref-mm-src">原文语言</label>
-			<input type="text" id="zhinfo-pref-mm-src" placeholder="en" />
+			<input type="text" id="zhinfo-pref-mm-src" placeholder="en" spellcheck="false" />
 		</div>
 	</section>
 
 	<section class="zhinfo-prefs-group" id="zhinfo-group-google">
 		<h2>Google 翻译</h2>
-		<p class="zhinfo-prefs-description">使用 translate.googleapis.com 的免费接口，无需配置。若所在网络无法访问 Google，请改用「大模型 API」。</p>
+		<p class="zhinfo-prefs-hint">使用 translate.googleapis.com 的免费接口，无需配置。网络无法访问 Google 时请改用「大模型 API」。</p>
 	</section>
 
 	<section class="zhinfo-prefs-group" id="zhinfo-group-engine">
-		<h2>PDF 引擎（真正保留原版面）</h2>
-		<p class="zhinfo-prefs-description">在阅读器浮条点「生成双语PDF」时，调用开源引擎 BabelDOC（沉浸式翻译官方开源后端）/ PDFMathTranslate 生成新的双语 PDF：图表公式不动，译文按原文框重排、字号自适应。安装命令：uv tool install --python 3.12 --with "bitstring&lt;5" BabelDOC</p>
+		<h2>三、PDF 引擎（真正保留原版面）</h2>
+		<p class="zhinfo-prefs-hint">阅读器浮条点「生成双语PDF」时，插件调用开源引擎（BabelDOC / PDFMathTranslate）重新排版生成新的双语 PDF：图表公式不动、译文按原文框自适应字号，完成后作为子附件挂到该文献下。</p>
 		<div class="zhinfo-prefs-row">
 			<label for="zhinfo-pref-engine">引擎</label>
 			<select id="zhinfo-pref-engine">
@@ -83,32 +86,36 @@
 				<option value="babeldoc">BabelDOC（推荐）</option>
 				<option value="pdf2zh">PDFMathTranslate（pdf2zh）</option>
 			</select>
+			<button id="zhinfo-btn-engine" type="button">测试引擎</button>
 		</div>
+		<div id="zhinfo-engine-status" class="zhinfo-prefs-status"></div>
 		<div class="zhinfo-prefs-row">
-			<label for="zhinfo-pref-pdf2zhservice">pdf2zh 翻译服务名（小写，如 openai / deepseek / silicon）</label>
-			<input type="text" id="zhinfo-pref-pdf2zhservice" placeholder="openai" />
-		</div>
-		<div class="zhinfo-prefs-row">
-			<label for="zhinfo-pref-enginethread">并发线程数</label>
-			<input type="text" id="zhinfo-pref-enginethread" placeholder="4" />
-		</div>
-		<div class="zhinfo-prefs-row">
-			<label for="zhinfo-pref-enginepath">可执行文件路径（留空自动探测）</label>
-			<input type="text" id="zhinfo-pref-enginepath" placeholder="留空自动探测 ~/.local/bin/babeldoc.exe" />
+			<label for="zhinfo-pref-enginepath">可执行文件</label>
+			<input type="text" id="zhinfo-pref-enginepath" placeholder="留空自动探测 ~/.local/bin/babeldoc.exe" spellcheck="false" />
 		</div>
 		<div class="zhinfo-prefs-row">
 			<label for="zhinfo-pref-enginelangin">原文语言</label>
-			<input type="text" id="zhinfo-pref-enginelangin" placeholder="en" />
+			<input type="text" id="zhinfo-pref-enginelangin" placeholder="en" spellcheck="false" />
 		</div>
-		<label class="zhinfo-prefs-check"><input type="checkbox" id="zhinfo-pref-engineskipscanned" /> 跳过扫描版检测（确定是文本型 PDF 时勾选，可提速）</label>
+		<div class="zhinfo-prefs-row">
+			<label for="zhinfo-pref-enginethread">并发线程</label>
+			<input type="text" id="zhinfo-pref-enginethread" placeholder="4" spellcheck="false" />
+		</div>
+		<div class="zhinfo-prefs-row" id="zhinfo-row-pdf2zhservice">
+			<label for="zhinfo-pref-pdf2zhservice">pdf2zh 服务名</label>
+			<input type="text" id="zhinfo-pref-pdf2zhservice" placeholder="小写，如 openai / deepseek / silicon" spellcheck="false" />
+		</div>
+		<label class="zhinfo-prefs-check"><input type="checkbox" id="zhinfo-pref-engineskipscanned" /> 跳过扫描版检测（确认是文本型 PDF 时勾选，可提速）</label>
+		<p class="zhinfo-prefs-code">uv tool install --python 3.12 --with "bitstring&lt;5" BabelDOC</p>
+		<p class="zhinfo-prefs-hint">pdf2zh 还需补钉两个依赖版本，详见 README「pdf2zh 安装」。</p>
 	</section>
 
 	<section class="zhinfo-prefs-group" id="zhinfo-group-pdf">
-		<h2>PDF 双语对照</h2>
-		<p class="zhinfo-prefs-description">阅读 PDF 时，点阅读器工具栏的「双语对照」按钮，即以原位覆盖或重排方式显示中文译文；每段右上角的 × 可单独取消该段翻译，浮动工具条可停止 / 清除 / 关闭，并可拖动、选择翻译页数。</p>
-		<label class="zhinfo-prefs-check"><input type="checkbox" id="zhinfo-pref-pdfauto" /> 打开 PDF 时自动生成双语对照（总开关）</label>
+		<h2>四、PDF 双语对照（阅读器内）</h2>
+		<p class="zhinfo-prefs-hint">不生成新 PDF，直接在阅读器里给译文：每段右上角的 × 可单独取消该段；浮动工具条可拖动、可停可清、可选翻译页数。</p>
+		<label class="zhinfo-prefs-check"><input type="checkbox" id="zhinfo-pref-pdfauto" /> 打开 PDF 时自动开启双语（总开关）</label>
 		<div class="zhinfo-prefs-row">
-			<label for="zhinfo-pref-pdfpages">翻译页数（从当前页起，也可在浮动工具条里随时改）</label>
+			<label for="zhinfo-pref-pdfpages">翻译页数</label>
 			<select id="zhinfo-pref-pdfpages">
 				<option value="1">仅当前页（省额度）</option>
 				<option value="2">2 页</option>
@@ -117,25 +124,26 @@
 				<option value="10">10 页</option>
 				<option value="all">全部</option>
 			</select>
+			<em class="zhinfo-prefs-note">从当前页起算；浮条里随时可改</em>
 		</div>
-		<label class="zhinfo-prefs-check"><input type="checkbox" id="zhinfo-pref-pdffollow" /> 跟随翻阅：翻到新的一页时自动翻译该页（受上面页数上限约束）</label>
 		<div class="zhinfo-prefs-row">
 			<label for="zhinfo-pref-pdfmode">显示方式</label>
 			<select id="zhinfo-pref-pdfmode">
 				<option value="inline">原位覆盖：保留原版面（推荐）</option>
-				<option value="reflow">重排阅读视图：段落下方附译文</option>
+				<option value="reflow">重排阅读：段落下方附译文</option>
 			</select>
 		</div>
+		<label class="zhinfo-prefs-check"><input type="checkbox" id="zhinfo-pref-pdffollow" /> 跟随翻阅：翻到新的一页自动翻译该页（受页数上限约束）</label>
 		<div class="zhinfo-prefs-row">
-			<label for="zhinfo-pref-pdfmin">最短段落字符数（过短的标题/作者行会跳过）</label>
-			<input type="text" id="zhinfo-pref-pdfmin" placeholder="20" />
+			<label for="zhinfo-pref-pdfmin">最短段落字符</label>
+			<input type="text" id="zhinfo-pref-pdfmin" placeholder="20" spellcheck="false" />
 		</div>
 	</section>
 
 	<section class="zhinfo-prefs-group">
-		<h2>测试与批量</h2>
-		<div class="zhinfo-prefs-row">
-			<button id="zhinfo-btn-test" type="button">测试当前配置</button>
+		<h2>五、测试与批量</h2>
+		<div class="zhinfo-prefs-actions">
+			<button id="zhinfo-btn-test" type="button">测试当前翻译配置</button>
 			<button id="zhinfo-btn-batch" type="button">批量翻译所选条目</button>
 		</div>
 		<div id="zhinfo-test-result" class="zhinfo-prefs-result"></div>

@@ -25,6 +25,7 @@ pref("extensions.zhinfo.pdfMode", "inline");
 pref("extensions.zhinfo.pdfPages", "3");
 pref("extensions.zhinfo.pdfFollow", true);
 pref("extensions.zhinfo.pdfBarPos", "");
+pref("extensions.zhinfo.pdfBarMin", false);
 pref("extensions.zhinfo.pdfEngine", "auto");
 pref("extensions.zhinfo.pdfEnginePath", "");
 pref("extensions.zhinfo.pdf2zhService", "openai");

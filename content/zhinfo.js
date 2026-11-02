@@ -234,6 +234,7 @@ ZHInfo = {
 			}
 			if (typeof ZHInfoEngine != 'undefined' && ZHInfoEngine) {
 				ZHInfoEngine.init();
+				Zotero.ZhInfoEngine = ZHInfoEngine;
 			}
 		}
 		catch (e) {

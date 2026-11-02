@@ -1068,6 +1068,8 @@ ZHInfoBilingual = {
 			btn.textContent = state.showOriginal ? '显示译文' : '只看原文';
 			this._renderInline(state);
 		});
+		const btnMin = mk('–', () => this._setCollapsed(state, true));
+		btnMin.title = '最小化为圆形浮动图标';
 		const btnClose = mk('关闭', () => this._closeView(state, false));
 
 		const btnEngine = mk('生成双语PDF', () => this._runEngine(state));
@@ -1091,13 +1093,62 @@ ZHInfoBilingual = {
 		bar.appendChild(btnStop);
 		bar.appendChild(btnClear);
 		bar.appendChild(btnToggle);
+		bar.appendChild(btnMin);
 		bar.appendChild(btnClose);
 		doc.documentElement.appendChild(bar);
 
+		const fab = doc.createElement('div');
+		fab.id = 'zhb-fab';
+		fab.className = 'zhb-fab';
+		fab.title = '双语工具（单击展开，可拖动）';
+		fab.textContent = '译';
+		fab.style.display = 'none';
+		doc.documentElement.appendChild(fab);
+
 		state.bar = bar;
-		state.barEls = { status, btnStop, btnClear, btnToggle, pageSel };
+		state.barEls = { status, btnStop, btnClear, btnToggle, pageSel, btnEngine, btnAbortEngine, btnMin, fab };
 		this._makeDraggable(state, bar, handle);
+		this._makeDraggable(state, fab, fab, () => this._setCollapsed(state, false));
 		this._restoreBarPos(state, bar);
+		this._restoreBarPos(state, fab);
+		if (Zotero.Prefs.get('extensions.zhinfo.pdfBarMin', true)) {
+			this._setCollapsed(state, true);
+		}
+	},
+
+	/** 折叠成圆形浮动图标 / 展开浮条 */
+	_setCollapsed(state, collapsed) {
+		try {
+			const els = state.barEls || {};
+			if (!state.bar || !els.fab) return;
+			state.collapsed = !!collapsed;
+			state.bar.style.display = collapsed ? 'none' : '';
+			els.fab.style.display = collapsed ? 'flex' : 'none';
+			if (collapsed) {
+				// 图标落到浮条当前所在处，避免跳位
+				const r = state.bar.getBoundingClientRect();
+				const doc = state.bar.ownerDocument;
+				const win = doc.defaultView || {};
+				const vw = win.innerWidth || 1200;
+				const vh = win.innerHeight || 800;
+				const laid = r.width > 0 || r.height > 0;
+				const x = laid ? r.left : (vw - 62);
+				const y = laid ? r.top : (vh - 120);
+				const nx = Math.max(6, Math.min(vw - 50, x));
+				const ny = Math.max(6, Math.min(vh - 50, y));
+				els.fab.style.left = nx + 'px';
+				els.fab.style.top = ny + 'px';
+				els.fab.style.right = 'auto';
+				els.fab.style.bottom = 'auto';
+			}
+			try {
+				Zotero.Prefs.set('extensions.zhinfo.pdfBarMin', !!collapsed, true);
+			}
+			catch (e) { /* ignore */ }
+		}
+		catch (e) {
+			Zotero.logError(e);
+		}
 	},
 
 	/** 调用开源引擎（BabelDOC / PDFMathTranslate）生成保留原版面的双语 PDF */
@@ -1118,7 +1169,7 @@ ZHInfoBilingual = {
 			const startPage = this._currentPage(state) || 1;
 			const limit = this._limitValue(state);
 			this._setStatus(state, '引擎启动：' + (limit === Infinity ? '整篇' : ('第 ' + startPage + ' 页起 ' + limit + ' 页')));
-			const res = await ZHInfoEngine.run({
+			const res = await ZHInfoEngine.enqueue({
 				attachment: att,
 				startPage,
 				limit,
@@ -1138,7 +1189,12 @@ ZHInfoBilingual = {
 		}
 		catch (e) {
 			Zotero.logError(e);
-			this._setStatus(state, '引擎失败：' + (e && e.message ? e.message : e));
+			const msg = (e && e.message ? e.message : String(e));
+			this._setStatus(state, '引擎失败：' + msg);
+			try {
+				ZHInfoEngine.notify('双语 PDF 生成失败', msg, true);
+			}
+			catch (e2) { /* ignore */ }
 		}
 	},
 	// ------------------------------------------------------------ reflow 视图（重排阅读）
@@ -1289,6 +1345,7 @@ ZHInfoBilingual = {
 				+ (skip ? '（跳过 ' + skip + '）' : '') + (state.running ? ' · 翻译中' : ''));
 			const els = state.barEls || {};
 			if (els.btnStop) els.btnStop.disabled = !state.running;
+			if (els.fab) els.fab.dataset.running = state.running ? '1' : '0';
 		}
 		catch (e) { /* ignore */ }
 	},
@@ -1307,6 +1364,8 @@ ZHInfoBilingual = {
 			if (doc) {
 				const bar = doc.getElementById('zhb-bar');
 				if (bar) bar.remove();
+				const fabEl = doc.getElementById('zhb-fab');
+				if (fabEl) fabEl.remove();
 				const ov = doc.getElementById('zhb-overlay');
 				if (ov) ov.remove();
 				const layers = doc.querySelectorAll('.zhb-inline-layer');
@@ -1400,7 +1459,7 @@ ZHInfoBilingual = {
 		bar.style.bottom = 'auto';
 	},
 
-	_makeDraggable(state, bar, handle) {
+	_makeDraggable(state, bar, handle, onClick) {
 		const doc = bar.ownerDocument;
 		const win = doc.defaultView || {};
 		let dragging = false;
@@ -1436,6 +1495,14 @@ ZHInfoBilingual = {
 				const r = bar.getBoundingClientRect();
 				try {
 					Zotero.Prefs.set('extensions.zhinfo.pdfBarPos', Math.round(r.left) + ',' + Math.round(r.top), true);
+				}
+				catch (e) {
+					Zotero.logError(e);
+				}
+			}
+			else if (onClick) {
+				try {
+					onClick();
 				}
 				catch (e) {
 					Zotero.logError(e);
@@ -1488,6 +1555,14 @@ ZHInfoBilingual = {
 					+ ' align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px;'
 					+ ' background: rgba(255,255,255,.96); border: 1px solid rgba(120,120,120,.45); user-select: none;'
 					+ ' box-shadow: 0 2px 10px rgba(0,0,0,.18); color: #111; font-family: system-ui, sans-serif; }',
+				'.zhb-fab { position: fixed; z-index: 2147483001; width: 44px; height: 44px; border-radius: 50%;'
+					+ ' display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700;'
+					+ ' color: #fff; background: linear-gradient(180deg, #3b78f0, #1f57c3); cursor: pointer;'
+					+ ' box-shadow: 0 4px 14px rgba(0,0,0,.3); user-select: none; border: none; }',
+				'.zhb-fab:hover { filter: brightness(1.08); }',
+				'.zhb-fab[data-running="1"]::after { content: ""; position: absolute; top: 3px; right: 3px;'
+					+ ' width: 9px; height: 9px; border-radius: 50%; background: #ffd24a;'
+					+ ' border: 1px solid rgba(0,0,0,.25); }',
 				'.zhb-drag { cursor: move; user-select: none; opacity: .55; padding: 0 4px 0 0; font-size: 14px; }',
 				'.zhb-drag:hover { opacity: 1; }',
 				'.zhb-label { opacity: .7; }',

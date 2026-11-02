@@ -188,6 +188,33 @@ ZHInfoEngine = {
 		return c;
 	},
 
+	/** 引擎自检：路径、类型、版本、能力位（给设置面板的「测试引擎」用） */
+	async describe() {
+		const av = await this.available();
+		if (!av.ok) {
+			return { ok: false, text: '未找到引擎可执行文件。请安装：uv tool install --python 3.12 --with "bitstring' + String.fromCharCode(60) + '5" BabelDOC，或在设置里填写路径' };
+		}
+		let version = '';
+		try {
+			version = String(await Zotero.Utilities.Internal.subprocess(av.exe, ['--version'])).trim().slice(0, 80);
+		}
+		catch (e) {
+			version = '(取版本失败)';
+		}
+		let caps = {};
+		try {
+			caps = await this.caps(av.exe);
+		}
+		catch (e) { /* ignore */ }
+		const cfg = this._llmConfig();
+		return {
+			ok: true,
+			text: '引擎=' + av.engine + ' 路径=' + av.exe + ' 版本=' + version
+				+ ' 支持开关=' + JSON.stringify(caps)
+				+ ' 模型接口=' + (cfg.base ? cfg.base : '(未配置)'),
+		};
+	},
+
 	// ------------------------------------------------------------ 队列
 
 	isRunning(attachmentID) {
@@ -272,7 +299,7 @@ ZHInfoEngine = {
 		return false;
 	},
 
-	_notify(headline, body, isError) {
+	notify(headline, body, isError) {
 		try {
 			const pw = new Zotero.ProgressWindow({ closeOnClick: true });
 			pw.changeHeadline(headline);
@@ -364,7 +391,7 @@ ZHInfoEngine = {
 
 		const created = await this._importResult(attachment, produced);
 		if (!job.quiet) {
-			this._notify('双语 PDF 已生成', Zotero.Items.get(attachment.id).getField('title') || '');
+			this.notify('双语 PDF 已生成', Zotero.Items.get(attachment.id).getField('title') || '');
 		}
 		return { attachment: created, file: produced };
 	},
