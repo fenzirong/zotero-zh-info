@@ -140,21 +140,28 @@ ZHInfoBilingual = {
 					showOriginal: false,
 					lastScale: 0,
 					lastPageCount: 0,
+					lastPageNo: 0,
 					watcher: null,
 					bar: null,
 					barEls: {},
 					root: null,
 					list: null,
+					startPage: 1,
+					limit: 1,
+					follow: true,
 				};
 				this._states.set(id, state);
 			}
 			if (state.active) return;
 			state.active = true;
 
+			state.startPage = this._currentPage(state) || 1;
+			state.limit = this._limitValue(state);
+			state.follow = this._pref('pdfFollow', true) !== false;
+
 			if (!state.blocks) {
 				this._setStatus(state, '正在提取文本…');
-				const scope = this._pref('pdfScope', 'page');
-				state.blocks = await this.extract(reader, scope);
+				state.blocks = await this.extract(reader, 'all');
 				if (!state.blocks.length) {
 					this._setStatus(state, '未能提取到文本（可能是扫描版 PDF）');
 					state.active = false;
@@ -172,7 +179,6 @@ ZHInfoBilingual = {
 				this._buildView(state);
 				this._renderList(state);
 			}
-			this._setStatus(state, '共 ' + state.blocks.length + ' 段');
 			this._updateHeader(state);
 			this.run(state);
 		}
@@ -525,19 +531,38 @@ ZHInfoBilingual = {
 		this._updateHeader(state);
 
 		let fails = 0;
-		for (let b of state.blocks) {
-			if (state.aborted) break;
-			if (b.status === 'done' || b.status === 'skipped') continue;
-			await this._translateBlock(state, b);
-			fails = (b.status === 'error') ? fails + 1 : 0;
-			if (fails >= 3) {
-				this._setStatus(state, '连续失败 3 次，已暂停（检查翻译服务设置）');
-				break;
+		try {
+			while (!state.aborted) {
+				const page = this._nextPage(state);
+				if (page == null) {
+					if (!state.follow) break;
+					if (this._beyondLimit(state)) {
+						this._setStatus(state, '已到设定页数上限（' + this._limitLabel(state) + '）');
+						break;
+					}
+					await this._sleep(800);
+					continue;
+				}
+
+				const todo = state.blocks.filter(b => b.page === page && b.status === 'idle');
+				for (let b of todo) {
+					if (state.aborted) break;
+					if (b.status !== 'idle') continue;
+					await this._translateBlock(state, b);
+					fails = (b.status === 'error') ? fails + 1 : 0;
+					if (fails >= 3) {
+						this._setStatus(state, '连续失败 3 次，已暂停（检查翻译服务设置）');
+						state.aborted = true;
+						break;
+					}
+					await this._sleep(200);
+				}
 			}
-			await this._sleep(220);
 		}
-		state.running = false;
-		this._updateHeader(state);
+		finally {
+			state.running = false;
+			this._updateHeader(state);
+		}
 	},
 
 	async _translateBlock(state, b) {
@@ -545,7 +570,17 @@ ZHInfoBilingual = {
 		b.status = 'loading';
 		b.err = '';
 		try {
-			const out = await ZHInfoTranslate.translate(b.src, 'text');
+			let timer = null;
+			const timeout = new Promise((resolve, reject) => {
+				timer = setTimeout(() => reject(new Error('翻译超时（45 秒无响应）')), 45000);
+			});
+			let out;
+			try {
+				out = await Promise.race([ZHInfoTranslate.translate(b.src, 'text'), timeout]);
+			}
+			finally {
+				if (timer) clearTimeout(timer);
+			}
 			if (b.status === 'skipped') return;
 			b.dst = out;
 			b.status = 'done';
@@ -682,21 +717,34 @@ ZHInfoBilingual = {
 		if (state.watcher) clearInterval(state.watcher);
 		state.lastScale = this._scale(state);
 		state.lastPageCount = this._pageCount(state);
+		state.lastPageNo = this._currentPage(state);
 		state.watcher = setInterval(() => {
 			try {
 				if (!state.active) return;
 				const s = this._scale(state);
 				const n = this._pageCount(state);
-				if (s !== state.lastScale || n !== state.lastPageCount) {
+				const p = this._currentPage(state);
+				if (s !== state.lastScale) {
 					state.lastScale = s;
+					this._renderInline(state);
+				}
+				if (n !== state.lastPageCount) {
 					state.lastPageCount = n;
 					this._renderInline(state);
+				}
+				const pageChanged = (p !== state.lastPageNo);
+				if (pageChanged) {
+					state.lastPageNo = p;
+					this._updateHeader(state);
+				}
+				if (state.follow && !state.aborted && !state.running && this._nextPage(state) != null) {
+					this.run(state);
 				}
 			}
 			catch (e) {
 				Zotero.logError(e);
 			}
-		}, 400);
+		}, 500);
 	},
 
 	_renderInline(state) {
@@ -802,15 +850,49 @@ ZHInfoBilingual = {
 		bar.id = 'zhb-bar';
 		bar.className = 'zhb-float';
 
+		const handle = doc.createElement('div');
+		handle.className = 'zhb-drag';
+		handle.title = '按住拖动';
+		handle.textContent = '⠿';
+
 		const status = doc.createElement('span');
 		status.className = 'zhb-status';
 		status.textContent = '';
 
-		const mk = (label, fn) => {
+		const label = doc.createElement('span');
+		label.className = 'zhb-label';
+		label.textContent = '页数';
+
+		const pageSel = doc.createElement('select');
+		pageSel.className = 'zhb-select';
+		const opts = [['1', '当前页'], ['2', '2 页'], ['3', '3 页'], ['5', '5 页'], ['10', '10 页'], ['all', '全部']];
+		const curVal = String(this._pref('pdfPages', '3'));
+		for (let o of opts) {
+			const op = doc.createElement('option');
+			op.value = o[0];
+			op.textContent = o[1];
+			if (o[0] === curVal) op.selected = true;
+			pageSel.appendChild(op);
+		}
+		pageSel.addEventListener('change', () => {
+			try {
+				Zotero.Prefs.set('extensions.zhinfo.pdfPages', pageSel.value, true);
+			}
+			catch (e) {
+				Zotero.logError(e);
+			}
+			state.limit = this._limitValue(state);
+			state.startPage = this._currentPage(state) || state.startPage;
+			state.aborted = false;
+			this._updateHeader(state);
+			this.run(state);
+		});
+
+		const mk = (btnLabel, fn) => {
 			const btn = doc.createElement('button');
 			btn.type = 'button';
 			btn.className = 'zhb-btn';
-			btn.textContent = label;
+			btn.textContent = btnLabel;
 			btn.addEventListener('click', (event) => {
 				event.preventDefault();
 				event.stopPropagation();
@@ -833,7 +915,10 @@ ZHInfoBilingual = {
 		});
 		const btnClose = mk('关闭', () => this._closeView(state, false));
 
+		bar.appendChild(handle);
 		bar.appendChild(status);
+		bar.appendChild(label);
+		bar.appendChild(pageSel);
 		bar.appendChild(btnStop);
 		bar.appendChild(btnClear);
 		bar.appendChild(btnToggle);
@@ -841,7 +926,9 @@ ZHInfoBilingual = {
 		doc.documentElement.appendChild(bar);
 
 		state.bar = bar;
-		state.barEls = { status, btnStop, btnClear, btnToggle };
+		state.barEls = { status, btnStop, btnClear, btnToggle, pageSel };
+		this._makeDraggable(state, bar, handle);
+		this._restoreBarPos(state, bar);
 	},
 
 	// ------------------------------------------------------------ reflow 视图（重排阅读）
@@ -984,7 +1071,12 @@ ZHInfoBilingual = {
 				if (b.status === 'done') done++;
 				if (b.status === 'skipped') skip++;
 			}
-			this._setStatus(state, done + '/' + total + (skip ? '（跳过 ' + skip + '）' : '') + (state.running ? ' · 翻译中' : ''));
+			const cur = this._currentPage(state);
+			const maxPage = this._pageMax(state);
+			const range = '第 ' + cur + ' 页' + (state.limit === Infinity ? ' · 全部' : ' · 上限 ' + this._limitLabel(state)
+				+ (maxPage < 1e9 ? '（到第 ' + maxPage + ' 页）' : ''));
+			this._setStatus(state, range + ' · ' + done + '/' + total + ' 段'
+				+ (skip ? '（跳过 ' + skip + '）' : '') + (state.running ? ' · 翻译中' : ''));
 			const els = state.barEls || {};
 			if (els.btnStop) els.btnStop.disabled = !state.running;
 		}
@@ -994,7 +1086,9 @@ ZHInfoBilingual = {
 	_closeView(state, immediate) {
 		try {
 			state.aborted = true;
+			state.running = false;
 			state.active = false;
+			state.runToken = (state.runToken || 0) + 1;
 			if (state.watcher) {
 				clearInterval(state.watcher);
 				state.watcher = null;
@@ -1028,6 +1122,135 @@ ZHInfoBilingual = {
 		}
 	},
 
+	// ------------------------------------------------------------ 页范围 / 跟随
+
+	_currentPage(state) {
+		try {
+			const app = this._viewerApp(state);
+			return (app && app.pdfViewer && app.pdfViewer.currentPageNumber) || 1;
+		}
+		catch (e) {
+			return 1;
+		}
+	},
+
+	_limitValue() {
+		const raw = String(this._pref('pdfPages', '3'));
+		if (raw === 'all') return Infinity;
+		const n = parseInt(raw, 10);
+		return (isNaN(n) || n < 1) ? 1 : n;
+	},
+
+	_limitLabel(state) {
+		return state.limit === Infinity ? '全部' : (state.limit + ' 页');
+	},
+
+	_pageMax(state) {
+		return state.limit === Infinity ? 1e9 : (state.startPage + state.limit - 1);
+	},
+
+	_beyondLimit(state) {
+		return this._currentPage(state) > this._pageMax(state);
+	},
+
+	/** 下一个要翻译的页：优先当前页与其后一页（预取），再按页序补齐 */
+	_nextPage(state) {
+		const cur = this._currentPage(state);
+		const maxPage = this._pageMax(state);
+		const cands = [cur, cur + 1];
+		for (let p = state.startPage; p <= maxPage; p++) cands.push(p);
+		for (let p of cands) {
+			if (p < 1 || p > maxPage) continue;
+			if (!state.blocks.some(b => b.page === p && b.status === 'idle')) continue;
+			return p;
+		}
+		return null;
+	},
+
+	// ------------------------------------------------------------ 浮条位置 / 拖动
+
+	_restoreBarPos(state, bar) {
+		let pos = '';
+		try {
+			pos = String(Zotero.Prefs.get('extensions.zhinfo.pdfBarPos', true) || '');
+		}
+		catch (e) { /* ignore */ }
+		const m = pos.match(/^(-?\d+),(-?\d+)$/);
+		if (!m) return;
+		const doc = bar.ownerDocument;
+		const win = doc.defaultView || {};
+		const w = win.innerWidth || 1200;
+		const h = win.innerHeight || 800;
+		const x = Math.max(0, Math.min(w - 140, parseInt(m[1], 10)));
+		const y = Math.max(0, Math.min(h - 40, parseInt(m[2], 10)));
+		bar.style.left = x + 'px';
+		bar.style.top = y + 'px';
+		bar.style.right = 'auto';
+		bar.style.bottom = 'auto';
+	},
+
+	_makeDraggable(state, bar, handle) {
+		const doc = bar.ownerDocument;
+		const win = doc.defaultView || {};
+		let dragging = false;
+		let moved = false;
+		let sx = 0;
+		let sy = 0;
+		let ox = 0;
+		let oy = 0;
+
+		const onMove = (e) => {
+			if (!dragging) return;
+			const w = win.innerWidth || 1200;
+			const h = win.innerHeight || 800;
+			let nx = ox + (e.clientX - sx);
+			let ny = oy + (e.clientY - sy);
+			nx = Math.max(0, Math.min(w - bar.offsetWidth, nx));
+			ny = Math.max(0, Math.min(h - bar.offsetHeight, ny));
+			bar.style.left = nx + 'px';
+			bar.style.top = ny + 'px';
+			moved = true;
+			e.preventDefault();
+		};
+
+		const onUp = () => {
+			if (!dragging) return;
+			dragging = false;
+			try {
+				doc.removeEventListener('mousemove', onMove, true);
+				doc.removeEventListener('mouseup', onUp, true);
+			}
+			catch (e) { /* ignore */ }
+			if (moved) {
+				const r = bar.getBoundingClientRect();
+				try {
+					Zotero.Prefs.set('extensions.zhinfo.pdfBarPos', Math.round(r.left) + ',' + Math.round(r.top), true);
+				}
+				catch (e) {
+					Zotero.logError(e);
+				}
+			}
+		};
+
+		handle.addEventListener('mousedown', (e) => {
+			dragging = true;
+			moved = false;
+			const r = bar.getBoundingClientRect();
+			ox = r.left;
+			oy = r.top;
+			sx = e.clientX;
+			sy = e.clientY;
+			bar.style.left = ox + 'px';
+			bar.style.top = oy + 'px';
+			bar.style.right = 'auto';
+			bar.style.bottom = 'auto';
+			doc.addEventListener('mousemove', onMove, true);
+			doc.addEventListener('mouseup', onUp, true);
+			e.preventDefault();
+			e.stopPropagation();
+		}, true);
+	},
+
 	// ------------------------------------------------------------ 样式
 
 	_injectStyle(doc) {
@@ -1051,8 +1274,13 @@ ZHInfoBilingual = {
 				'.zhb-inline:hover .zhb-inline-x { opacity: 1; }',
 				'.zhb-float { position: fixed; right: 18px; bottom: 18px; z-index: 2147483000; display: flex;'
 					+ ' align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; font-size: 12px;'
-					+ ' background: rgba(255,255,255,.96); border: 1px solid rgba(120,120,120,.45);'
+					+ ' background: rgba(255,255,255,.96); border: 1px solid rgba(120,120,120,.45); user-select: none;'
 					+ ' box-shadow: 0 2px 10px rgba(0,0,0,.18); color: #111; font-family: system-ui, sans-serif; }',
+				'.zhb-drag { cursor: move; user-select: none; opacity: .55; padding: 0 4px 0 0; font-size: 14px; }',
+				'.zhb-drag:hover { opacity: 1; }',
+				'.zhb-label { opacity: .7; }',
+				'.zhb-select { font: inherit; font-size: 12px; padding: 1px 2px; border-radius: 4px;'
+					+ ' border: 1px solid rgba(127,127,127,.5); background: transparent; color: inherit; }',
 				'.zhb-overlay { position: fixed; inset: 0; z-index: 2147483000; overflow: auto;'
 					+ ' background: var(--material-background, #fff); color: inherit; font-size: 15px; }',
 				'.zhb-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px;'

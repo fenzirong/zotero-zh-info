@@ -18,6 +18,8 @@
 		pdfScope: 'extensions.zhinfo.pdfScope',
 		pdfMin: 'extensions.zhinfo.pdfMinChars',
 		pdfMode: 'extensions.zhinfo.pdfMode',
+		pdfPages: 'extensions.zhinfo.pdfPages',
+		pdfFollow: 'extensions.zhinfo.pdfFollow',
 	};
 
 	let initialized = false;
@@ -184,7 +186,8 @@
 		bindText('zhinfo-pref-mm-src', P.mmSrc);
 
 		bindCheck('zhinfo-pref-pdfauto', P.pdfAuto, false);
-		bindSelect('zhinfo-pref-pdfscope', P.pdfScope);
+		bindSelect('zhinfo-pref-pdfpages', P.pdfPages);
+		bindCheck('zhinfo-pref-pdffollow', P.pdfFollow, true);
 		bindNumber('zhinfo-pref-pdfmin', P.pdfMin, 20);
 		bindSelect('zhinfo-pref-pdfmode', P.pdfMode);
 

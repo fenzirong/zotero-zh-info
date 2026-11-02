@@ -82,12 +82,17 @@
 		<description class="zhinfo-prefs-description">阅读 PDF 时，点阅读器工具栏的「双语对照」按钮，即以重排文本方式逐段显示原文与中文译文；每段右上角的 × 可单独取消该段翻译，顶部可停止/清除/关闭。</description>
 		<checkbox id="zhinfo-pref-pdfauto" label="打开 PDF 时自动生成双语对照（总开关）" />
 		<hbox align="center" class="zhinfo-prefs-row">
-			<label value="自动翻译范围" flex="1" />
-			<html:select id="zhinfo-pref-pdfscope" style="min-width: 270px;">
-				<html:option value="page">仅当前页（省额度，推荐）</html:option>
-				<html:option value="all">整篇文档（逐段后台翻译）</html:option>
+			<label value="翻译页数（从当前页起，也可在浮动工具条里随时改）" flex="1" />
+			<html:select id="zhinfo-pref-pdfpages" style="min-width: 270px;">
+				<html:option value="1">仅当前页（省额度）</html:option>
+				<html:option value="2">2 页</html:option>
+				<html:option value="3">3 页（默认）</html:option>
+				<html:option value="5">5 页</html:option>
+				<html:option value="10">10 页</html:option>
+				<html:option value="all">全部</html:option>
 			</html:select>
 		</hbox>
+		<checkbox id="zhinfo-pref-pdffollow" label="跟随翻阅：翻到新的一页时自动翻译该页（受上面页数上限约束）" />
 		<hbox align="center" class="zhinfo-prefs-row">
 			<label value="显示方式" flex="1" />
 			<html:select id="zhinfo-pref-pdfmode" style="min-width: 270px;">
