@@ -15,7 +15,7 @@ if ($manifestVersion -ne $Version) {
 
 if (Test-Path -LiteralPath $out) { Remove-Item -LiteralPath $out -Force }
 
-$include = @('.json', '.js', '.css', '.xhtml', '.ftl', '.svg', '.png')
+$include = @('.json', '.js', '.css', '.xhtml', '.ftl', '.svg', '.png', '.py')
 $files = Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
 	$include -contains $_.Extension -and $_.Name -ne 'build.ps1' -and $_.Extension -ne '.xpi' -and $_.Name -notlike '_*'
 }

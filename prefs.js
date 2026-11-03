@@ -30,6 +30,7 @@ pref("extensions.zhinfo.pdfBarPos", "");
 pref("extensions.zhinfo.pdfBarMin", false);
 pref("extensions.zhinfo.pdfEngine", "auto");
 pref("extensions.zhinfo.pdfEnginePath", "");
+pref("extensions.zhinfo.enginePythonPath", "");
 pref("extensions.zhinfo.pdf2zhService", "openai");
 pref("extensions.zhinfo.engineThread", 2);
 pref("extensions.zhinfo.engineLangIn", "en");

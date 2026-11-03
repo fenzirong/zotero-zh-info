@@ -17,7 +17,9 @@ ZHInfoEngine = {
 	_queue: null,
 	_active: null,
 
-	init() {
+	init(env) {
+		this.rootURI = (env && env.rootURI) || '';
+		this.id = (env && env.id) || '';
 		this._jobs = new Map();
 		this._queue = [];
 		this._active = null;
@@ -81,7 +83,106 @@ ZHInfoEngine = {
 		return null;
 	},
 
+	/** BabelDOC 内置 Python（uv tool 安装位置），用于跑我们的 JSONL 驱动 */
+	_appDataDir() {
+		try {
+			if (Zotero.isWin) {
+				// Windows: 用 nsIFile 取 %APPDATA%\\uv，避免依赖 process.env
+				const f = Services.dirsvc.get('AppData', Ci.nsIFile);
+				return f ? f.path : null;
+			}
+			const home = this._home();
+			return home ? [home, 'Library', 'Application Support'].join('/') : null;
+		}
+		catch (e) {
+			return null;
+		}
+	},
+
+	_pythonCandidates() {
+		const home = this._home();
+		const sep = Zotero.isWin ? '\\' : '/';
+		const ext = Zotero.isWin ? '.exe' : '';
+		const list = [];
+		const app = this._appDataDir();
+		if (app) {
+			// uv tool 默认安装在这两个位置之一
+			list.push([app, 'uv', 'tools', 'babeldoc', 'Scripts', 'python' + ext].join(sep));
+			list.push([app, 'uv', 'python'].join(sep));
+		}
+		if (home) {
+			list.push([home, '.local', 'bin', 'python' + ext].join(sep));
+			// uv 自己管理的 CPython
+			list.push([home, 'AppData', 'Roaming', 'uv', 'python'].join(sep));
+		}
+		return list;
+	},
+
+	/** 目录型候选（uv 的 cpython-* 目录）下找 python.exe */
+	async _findPythonInDir(dir) {
+		try {
+			if (!(await IOUtils.exists(dir))) return null;
+			const kids = await IOUtils.getChildren(dir);
+			const exe = Zotero.isWin ? 'python.exe' : 'python3';
+			for (let k of kids) {
+				const cand = PathUtils.join(k, exe);
+				try {
+					if (await IOUtils.exists(cand)) return cand;
+				}
+				catch (e) { /* ignore */ }
+			}
+		}
+		catch (e) { /* ignore */ }
+		return null;
+	},
+
+	async resolvePython() {
+		const pref = String(ZHInfo.pref('enginePythonPath', '') || '').trim();
+		if (pref) {
+			try {
+				if (await IOUtils.exists(pref)) return pref;
+			}
+			catch (e) { /* ignore */ }
+		}
+		for (let p of this._pythonCandidates()) {
+			try {
+				if (await IOUtils.exists(p)) return p;
+			}
+			catch (e) { /* ignore */ }
+			const inDir = await this._findPythonInDir(p);
+			if (inDir) return inDir;
+		}
+		return null;
+	},
+
+	/** 驱动脚本落盘到临时目录（内容随插件走，避免路径问题） */
+	async _ensureDriver() {
+		const root = this.rootURI || (Zotero.ZhInfo && Zotero.ZhInfo.rootURI) || '';
+		if (!root) throw new Error('插件根路径未知，无法加载驱动脚本');
+		const src = Zotero.File.getContentsFromURL(root + 'content/engine/zhinfo_driver.py');
+		if (!src || !src.length) throw new Error('插件内缺少 content/engine/zhinfo_driver.py');
+		const dir = PathUtils.join(Zotero.getTempDirectory().path, 'zhinfo-engine');
+		await IOUtils.makeDirectory(dir, { createAncestors: true, ignoreExisting: true });
+		const path = PathUtils.join(dir, 'zhinfo_driver.py');
+		let need = true;
+		try {
+			const cur = await IOUtils.readUTF8(path);
+			need = !cur || cur.length !== src.length;
+		}
+		catch (e) {
+			need = true;
+		}
+		if (need) await IOUtils.writeUTF8(path, src);
+		return path;
+	},
+
 	async available() {
+		const py = await this.resolvePython();
+		return { ok: !!py, exe: py, python: py, engine: 'babeldoc' };
+	},
+
+	/** 兼容旧调用：直接给引擎可执行文件路径的场景 */
+	async availableLegacy() {
 		const exe = await this.resolveExe();
 		return { ok: !!exe, exe, engine: exe ? this.engineIdOf(exe) : null };
 	},
@@ -287,11 +388,12 @@ ZHInfoEngine = {
 			caps = await this.caps(av.exe);
 		}
 		catch (e) { /* ignore */ }
+		const drv = await this._ensureDriver().catch(() => null);
 		const cfg = this._llmConfig();
 		return {
 			ok: true,
 			text: '引擎=' + av.engine + ' 路径=' + av.exe + ' 版本=' + version
-				+ ' 支持开关=' + JSON.stringify(caps)
+				+ ' 驱动=' + (drv || '缺失')
 				+ ' 模型接口=' + (cfg.base ? cfg.base : '(未配置)'),
 		};
 	},
@@ -397,6 +499,7 @@ ZHInfoEngine = {
 
 	async _execInner(job) {
 		const attachment = job.attachment;
+		Zotero.debug('ZhInfo: _execInner 开始 att=' + attachment.id);
 		const av = await this.available();
 		if (!av.ok) {
 			throw new Error('未检测到翻译引擎：请安装 BabelDOC（uv tool install --python 3.12 --with "bitstring@LT@5" BabelDOC）或 pdf2zh，或在设置里填写可执行文件路径'.replace('@LT@', String.fromCharCode(60)));
@@ -413,66 +516,115 @@ ZHInfoEngine = {
 		await IOUtils.makeDirectory(outDir, { createAncestors: true });
 		job.outDir = outDir;
 
-		const caps = await this.caps(av.exe);
 		const thinking = await this.resolveThinking();
-		const inv = this.buildInvocation({
-			exe: av.exe,
-			engine: av.engine,
-			pdfPath,
-			outDir,
-			startPage: job.startPage,
-			limit: job.limit,
-			caps,
-			thinking,
-		});
+		const driver = await this._ensureDriver();
 
-		const Subprocess = ChromeUtils.importESModule('resource://gre/modules/Subprocess.sys.mjs').Subprocess;
-		Zotero.debug('ZhInfo: engine[' + av.engine + '] ' + av.exe + ' ' + inv.args.join(' '));
-
-		const callOpts = {
-			command: av.exe,
-			arguments: inv.args,
-			stderr: 'pipe',
-		};
-		if (inv.environmentAppend && Object.keys(inv.environment).length) {
-			callOpts.environmentAppend = true;
-			callOpts.environment = inv.environment;
+		let pages = 'all';
+		if (job.limit && job.limit !== Infinity) {
+			const from = Math.max(1, job.startPage || 1);
+			const to = from + job.limit - 1;
+			pages = to > from ? (from + '-' + to) : String(from);
 		}
 
-		const proc = await Subprocess.call(callOpts);
+		const Subprocess = ChromeUtils.importESModule('resource://gre/modules/Subprocess.sys.mjs').Subprocess;
+
+		// BabelDOC 的 CLI 进度条在非 TTY 环境下不输出（这就是"引擎 120 秒无输出"的根因），
+		// 所以改为调用插件自带的 Python 驱动：走 BabelDOC 官方 async_translate API，
+		// 以 JSONL 逐条吐出 stage / 百分比 / finish / error。
+		job.python = job.python || await this.resolvePython();
+		if (!job.python) {
+			throw new Error('未找到 BabelDOC 的 Python 解释器：请先安装 uv tool install --python 3.12 BabelDOC，或在设置里填写 python 路径');
+		}
+		job.driver = driver;
+		const cfg2 = this._llmConfig();
+		const args = [
+			driver,
+			'--input', pdfPath,
+			'--output', outDir,
+			'--pages', pages,
+			'--lang-in', String(ZHInfo.pref('engineLangIn', 'en')),
+			'--lang-out', String(ZHInfo.pref('targetLang', 'zh-CN')),
+			'--model', cfg2.model,
+			'--base-url', cfg2.base,
+			'--api-key', cfg2.key,
+			'--qps', String(Number(ZHInfo.pref('engineThread', 2)) || 2),
+			'--report-interval', String(Number(ZHInfo.pref('engineReportInterval', 2)) || 2),
+		];
+		if (thinking === 'disabled' || thinking === 'enabled') args.push('--thinking', thinking);
+		if (ZHInfo.pref('engineSkipScanned', false)) args.push('--skip-scanned');
+
+		Zotero.debug('ZhInfo: driver ' + job.python + ' ' + args.join(' '));
+
+		const callOpts = {
+			command: job.python,
+			arguments: args,
+			stderr: 'pipe',
+		};
+
+		let proc;
+		try {
+			proc = await Subprocess.call(callOpts);
+		}
+		catch (e) {
+			throw new Error('无法启动驱动进程：' + (e && e.message ? e.message : e) + '；命令=' + job.python);
+		}
 		job.proc = proc;
+		Zotero.debug('ZhInfo: 驱动已启动 pid=' + (proc.pid || 'n/a'));
 
 		let tail = '';
-		let lastPush = 0;
-		let lastLine = '';
-		const pump = async (stream) => {
+		job.events = { finish: null, error: null };
+
+		const handleLine = (line) => {
+			const t = String(line).trim();
+			if (!t || t[0] !== '{') return;
+			let ev;
 			try {
+				ev = JSON.parse(t);
+			}
+			catch (e) {
+				return;
+			}
+			if (!ev || !ev.type) return;
+			if (ev.type === 'finish') {
+				job.events.finish = ev;
+				if (job.onProgress) job.onProgress('完成：' + (ev.dual || ev.mono || '') + (ev.seconds ? '（' + Math.round(ev.seconds) + 's）' : ''));
+				return;
+			}
+			if (ev.type === 'error') {
+				job.events.error = ev.error || '未知错误';
+				if (job.onProgress) job.onProgress('错误：' + job.events.error);
+				return;
+			}
+			if (ev.type === 'progress' && ev.stage && job.onProgress) {
+				const pct = Math.round(Number(ev.pct) || 0);
+				job.onProgress('[' + pct + '%] ' + ev.stage
+					+ (ev.total ? '（' + (ev.cur || 0) + '/' + ev.total + '）' : ''));
+				return;
+			}
+			if (ev.type === 'stage' && job.onProgress) {
+				job.onProgress('准备：' + ev.stage);
+			}
+		};
+
+		const pump = async (stream, onLine) => {
+			try {
+				let buf = '';
 				let str;
 				while ((str = await stream.readString())) {
-					tail = (tail + str).slice(-2000);
+					tail = (tail + str).slice(-3000);
 					if (job._tick) job._tick();
-					// 引擎进度条默认每 0.1s 重绘一次，直接逐块写 DOM 会把 Zotero 拖卡，
-					// 这里按时间节流（500ms）且只在文本变化时回调。
-					const now = Date.now();
-					if (job.onProgress && (now - lastPush) >= 500) {
-						lastPush = now;
-						const parts = String(tail).split(/[\r\n]+/).filter(s => s.trim());
-						const line = parts.length ? parts[parts.length - 1].trim() : '';
-						if (line && line !== lastLine) {
-							lastLine = line;
-							try {
-								job.onProgress(line);
-							}
-							catch (e) { /* ignore */ }
-						}
-					}
+					buf += str;
+					const parts = buf.split('\n');
+					buf = parts.pop();
+					for (let ln of parts) onLine(ln);
 				}
+				if (buf) onLine(buf);
 			}
 			catch (e) { /* closed */ }
 		};
 
-		const pOut = pump(proc.stdout);
-		const pErr = proc.stderr ? pump(proc.stderr) : Promise.resolve();
+		const pOut = pump(proc.stdout, handleLine);
+		const pErr = proc.stderr ? pump(proc.stderr, () => {}) : Promise.resolve();
 
 		// 看门狗：长时间无任何输出时，多半是被限流后指数退避重试，提示用户而不是干等
 		let lastTick = Date.now();
@@ -482,7 +634,7 @@ ZHInfoEngine = {
 			lastTick = Date.now();
 			if (job.onProgress) {
 				try {
-					job.onProgress('（引擎 120 秒无输出，可能在重试/被限流；可在设置里把并发线程调成 1）');
+					job.onProgress('（引擎 120 秒没有新进度：可能在重试/被限流，或版面模型加载中；可在设置里把并发线程调成 1）');
 				}
 				catch (e) { /* ignore */ }
 			}
@@ -496,13 +648,30 @@ ZHInfoEngine = {
 		job.proc = null;
 
 		if (job.aborted) throw new Error('已取消');
-		if (/has no attribute 'strip'|NoneType/.test(tail)) {
-			throw new Error('模型没有返回正文：该模型把 token 全花在"思考"上，引擎拿不到译文。'
-				+ '请在设置 → PDF 引擎 →「引擎思考模式」选「关闭思考」（或换用非推理模型，如 deepseek-chat）后重试。');
-		}
-		if (exitCode !== 0) throw new Error('引擎退出码 ' + exitCode + '：' + tail.slice(-400));
 
-		const produced = await this._pickOutput(outDir, pdfPath);
+		const ev = job.events || {};
+		if (ev.error) {
+			const msg = String(ev.error);
+			if (/NoneType|strip|reasoning|content/i.test(msg)) {
+				throw new Error('模型没有返回正文（多为推理型模型把 token 用在思考上）：' + msg
+					+ '\\n请在设置 → PDF 引擎 →「引擎思考模式」选「关闭思考」后重试。');
+			}
+			throw new Error('引擎报错：' + msg.slice(0, 500));
+		}
+		if (exitCode !== 0) throw new Error('引擎退出码 ' + exitCode + '（无结构化错误）：' + tail.slice(-400));
+
+		// 优先用 finish 事件给出的路径，其次扫描输出目录
+		let produced = null;
+		if (ev.finish) {
+			for (let cand of [ev.finish.dual, ev.finish.mono]) {
+				if (!cand) continue;
+				try {
+					if (await IOUtils.exists(cand)) { produced = cand; break; }
+				}
+				catch (e) { /* ignore */ }
+			}
+		}
+		if (!produced) produced = await this._pickOutput(outDir, pdfPath);
 		if (!produced) throw new Error('引擎未产出 PDF：' + tail.slice(-400));
 
 		const created = await this._importResult(attachment, produced);

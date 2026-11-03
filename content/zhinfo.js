@@ -237,7 +237,7 @@ ZHInfo = {
 				ZHInfoBilingual.init({ pluginID: this.id });
 			}
 			if (typeof ZHInfoEngine != 'undefined' && ZHInfoEngine) {
-				ZHInfoEngine.init();
+				ZHInfoEngine.init({ id: this.id, version: this.version, rootURI: this.rootURI });
 				Zotero.ZhInfoEngine = ZHInfoEngine;
 			}
 			if (typeof ZHInfoUpdate != 'undefined' && ZHInfoUpdate) {
