@@ -159,11 +159,31 @@ ZHInfoEngine = {
 	async _ensureDriver() {
 		const root = this.rootURI || (Zotero.ZhInfo && Zotero.ZhInfo.rootURI) || '';
 		if (!root) throw new Error('插件根路径未知，无法加载驱动脚本');
-		const src = Zotero.File.getContentsFromURL(root + 'content/engine/zhinfo_driver.py');
-		if (!src || !src.length) throw new Error('插件内缺少 content/engine/zhinfo_driver.py');
 		const dir = PathUtils.join(Zotero.getTempDirectory().path, 'zhinfo-engine');
 		await IOUtils.makeDirectory(dir, { createAncestors: true, ignoreExisting: true });
 		const path = PathUtils.join(dir, 'zhinfo_driver.py');
+
+		// 已经落盘且非空就直接用，避免每次点按钮都做一次同步 XHR（会阻塞主线程）
+		if (this._driverPath && this._driverPath === path) {
+			try {
+				const st = await IOUtils.stat(path);
+				if (st && st.size > 0) return path;
+			}
+			catch (e) { /* fallthrough */ }
+		}
+
+		// 用异步 fetch 读插件内资源，不用 Zotero.File.getContentsFromURL（那是同步 XHR）
+		let src = '';
+		try {
+			const res = await fetch(root + 'content/engine/zhinfo_driver.py');
+			src = await res.text();
+		}
+		catch (e) {
+			// 兜底：仍走同步接口，但只在首次/失败时发生一次
+			src = Zotero.File.getContentsFromURL(root + 'content/engine/zhinfo_driver.py');
+		}
+		if (!src || !src.length) throw new Error('插件内缺少 content/engine/zhinfo_driver.py');
+
 		let need = true;
 		try {
 			const cur = await IOUtils.readUTF8(path);
@@ -173,6 +193,7 @@ ZHInfoEngine = {
 			need = true;
 		}
 		if (need) await IOUtils.writeUTF8(path, src);
+		this._driverPath = path;
 		return path;
 	},
 
