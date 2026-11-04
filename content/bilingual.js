@@ -1217,7 +1217,18 @@ ZHInfoBilingual = {
 			}
 			const startPage = 1;
 			const limit = ZHInfoEngine._engineLimit();
-			this._setStatus(state, '引擎启动：' + (limit === Infinity ? '整篇文档' : ('前 ' + limit + ' 页')));
+			let srcName = '';
+			try {
+				const pth = await att.getFilePathAsync();
+				srcName = pth ? PathUtils.filename(pth) : '';
+			}
+			catch (e) { /* ignore */ }
+			if (srcName && ZHInfoEngine.isTranslatedName(srcName)) {
+				this._setStatus(state, '当前是双语译本，将自动改用原始 PDF…');
+			}
+			else {
+				this._setStatus(state, '引擎启动：' + (limit === Infinity ? '整篇文档' : ('前 ' + limit + ' 页')));
+			}
 			const res = await ZHInfoEngine.enqueue({
 				attachment: att,
 				startPage,

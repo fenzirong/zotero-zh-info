@@ -52,8 +52,43 @@ def build_config(a):
     return cfg
 
 
+def pick_source_pdf(path):
+    """若传入的是 BabelDOC/PDFMathTranslate 生成的产物，尝试找到同目录的原始 PDF。
+    参考 BabelDOC 自身的检测：它拒绝翻译已由它生成的文件。"""
+    import re
+    name = os.path.basename(path)
+    if not re.search(r"\.(no_watermark\.)?(zh|zh-CN|zh-TW)(\.[a-z\-]+)?\.(mono|dual)\.pdf$", name, re.I):
+        return path, None
+    d, base = os.path.split(path)
+    # 去掉 .no_watermark.zh-CN.dual / .zh-CN.dual 之类的后缀
+    stem = re.sub(r"\.(no_watermark\.)?(zh|zh-CN|zh-TW)(\.[a-z\-]+)?\.(mono|dual)\.pdf$", "", base, flags=re.I)
+    for cand in (stem + ".pdf",):
+        p = os.path.join(d, cand)
+        if os.path.exists(p):
+            return p, path
+    # 同目录下找“最像原始文件”的 pdf（名字前缀相同、不是产物）
+    pref = stem[:40].lower()
+    best = None
+    for fn in os.listdir(d):
+        if not fn.lower().endswith(".pdf"):
+            continue
+        if re.search(r"\.(mono|dual)\.pdf$", fn, re.I):
+            continue
+        if fn.lower().startswith(pref) or pref.startswith(fn.lower()[:40]):
+            if best is None or len(fn) < len(best):
+                best = fn
+    if best:
+        return os.path.join(d, best), path
+    return path, path
+
+
 async def run(a):
     from babeldoc.format.pdf import high_level
+    src, was = pick_source_pdf(a.input)
+    if was:
+        emit({"type": "stage", "stage": "using_original", "note": os.path.basename(src)})
+        emit({"type": "progress", "stage": "已自动改用原始 PDF（当前打开的是翻译产物）", "cur": 1, "total": 1, "pct": 0, "done": True})
+        a.input = src
     cfg = build_config(a)
     emit({"type": "stage", "stage": "config_ready"})
     async for event in high_level.async_translate(cfg):

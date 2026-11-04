@@ -497,8 +497,41 @@ ZHInfoEngine = {
 
 	// ------------------------------------------------------------ 执行
 
+	/** 是否为本插件/引擎生成的翻译产物文件名 */
+	isTranslatedName(name) {
+		return /\.(no_watermark\.)?(zh|zh-CN|zh-TW)(\.[a-z\-]+)?\.(mono|dual)\.pdf$/i.test(String(name || ''));
+	},
+
+	/**
+	 * 解析"真正的源 PDF 附件"：若当前附件是引擎产物（例如用户点在新生成的双语 PDF 上），
+	 * 就回到同父条目下找原始 PDF。BabelDOC 拒绝翻译自己生成的文件。
+	 */
+	async resolveSource(attachment) {
+		const att = Zotero.Items.get(attachment.id);
+		if (!att) return attachment;
+		const path = await att.getFilePathAsync();
+		const name = path ? PathUtils.filename(path) : String(att.getField('title') || '');
+		if (!this.isTranslatedName(name)) return att;
+
+		const parentID = att.parentItemID;
+		if (!parentID) return att;
+		const siblings = Zotero.Items.get(parentID).getAttachments();
+		const others = siblings
+			.map(id => Zotero.Items.get(id))
+			.filter(a => a && a.id !== att.id && a.isPDFAttachment && a.isPDFAttachment());
+		// 优先未被标记为翻译产物的附件
+		const raw = others.find(a => !a.getTags().some(t => t.tag === 'zhinfo-translated'));
+		const chosen = raw || others[0];
+		if (chosen) {
+			Zotero.debug('ZhInfo: 当前附件是翻译产物，改用原始 PDF 附件 ' + chosen.id);
+		}
+		return chosen || att;
+	},
+
 	async _execInner(job) {
-		const attachment = job.attachment;
+		let attachment = job.attachment;
+		attachment = await this.resolveSource(attachment);
+		job.attachment = attachment;
 		Zotero.debug('ZhInfo: _execInner 开始 att=' + attachment.id);
 		const av = await this.available();
 		if (!av.ok) {
@@ -655,6 +688,10 @@ ZHInfoEngine = {
 			if (/NoneType|strip|reasoning|content/i.test(msg)) {
 				throw new Error('模型没有返回正文（多为推理型模型把 token 用在思考上）：' + msg
 					+ '\\n请在设置 → PDF 引擎 →「引擎思考模式」选「关闭思考」后重试。');
+			}
+			if (/already been translated/i.test(msg)) {
+				throw new Error('当前打开的是已翻译的双语 PDF，BabelDOC 拒绝二次翻译。'
+					+ '请打开原始英文 PDF，或在文献列表右键用「用引擎生成双语 PDF（后台队列）」。');
 			}
 			throw new Error('引擎报错：' + msg.slice(0, 500));
 		}
